@@ -34,6 +34,9 @@
                 { selector: '[id^="rec-form_Email"]', profileKey: 'email' },
                 { selector: '[id^="rec-form_Mobile"]', profileKey: 'phone' },
                 { selector: '[id^="rec-form_Phone"]', profileKey: 'phone' },
+                { selector: '[id^="rec-form_Resume"]', profileKey: 'resumeFile' },
+                { selector: '[id^="rec-form_CV"]', profileKey: 'resumeFile' },
+                { selector: '[id^="rec-form_LinkedIn"]', profileKey: 'linkedinUrl' },
             ];
         }
     });

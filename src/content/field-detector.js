@@ -33,6 +33,10 @@ AAM.FieldDetector = {
     return Array.from(fields).filter(el => {
       if (el.disabled || el.readOnly) return false;
       if (el.type === 'hidden') return false;
+
+      // File inputs are often hidden by modern ATS (Workday, Zoho)
+      if (el.tagName === 'INPUT' && el.type === 'file') return true;
+
       const rect = el.getBoundingClientRect();
       if (rect.width < 10 || rect.height < 10) return false;
       const style = window.getComputedStyle(el);

@@ -57,6 +57,11 @@ AAM.Overlay = {
           to { transform: translateY(20px); opacity: 0; }
         }
 
+        @keyframes aamFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
         #aam-overlay-card {
           background: #ffffff;
           border: 1px solid #e0e0e0;

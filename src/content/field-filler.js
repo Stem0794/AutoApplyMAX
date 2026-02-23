@@ -21,8 +21,8 @@ AAM.FieldFiller = {
     const isContentEditable = el.getAttribute('contenteditable') === 'true';
 
     // Handle contenteditable / role-based textboxes that are not native inputs
-    if ((isContentEditable || role === 'textbox' || role === 'combobox') && 
-        tagName !== 'INPUT' && tagName !== 'TEXTAREA') {
+    if ((isContentEditable || role === 'textbox' || role === 'combobox') &&
+      tagName !== 'INPUT' && tagName !== 'TEXTAREA') {
       el.focus();
       el.textContent = value;
       el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -83,7 +83,7 @@ AAM.FieldFiller = {
       const optText = option.textContent.trim().toLowerCase();
       const optVal = option.value.toLowerCase();
       if (optText === lowerVal || optVal === lowerVal ||
-          optText.includes(lowerVal) || lowerVal.includes(optText)) {
+        optText.includes(lowerVal) || lowerVal.includes(optText)) {
         el.value = option.value;
         matched = true;
         break;
@@ -126,53 +126,87 @@ AAM.FieldFiller = {
 
         if (fileName && fileContent) {
           // Programmatic file upload is generally not possible for security reasons.
-          // Instead, we will notify the user and provide a download link.
-          const messageDiv = document.createElement('div');
-          messageDiv.className = 'aam-file-upload-message';
-          messageDiv.style.cssText = `
-            margin-top: 5px;
-            padding: 8px;
-            border: 1px solid #ffcc00;
-            background-color: #fffacd;
-            color: #333;
-            font-size: 12px;
-            border-radius: 4px;
+          // We provide a premium "Manual Upload Helper"
+          const helperId = `aam-helper-${profileKey}`;
+          if (document.getElementById(helperId)) continue; // Don't duplicate
+
+          const helper = document.createElement('div');
+          helper.id = helperId;
+          helper.className = 'aam-file-upload-helper';
+          helper.style.cssText = `
+            margin: 12px 0;
+            padding: 16px;
+            background: #f8faff;
+            border: 1px dashed #2563eb;
+            border-radius: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-          `;
-          messageDiv.innerHTML = `
-            <span>&#9888; Please manually upload your CV: <strong>${escapeHtml(fileName)}</strong></span>
-            <button class="aam-download-btn" data-filename="${escapeHtml(fileName)}" data-filecontent="${escapeHtml(fileContent)}"
-                    style="
-                      background-color: #4CAF50;
-                      color: white;
-                      padding: 5px 10px;
-                      border: none;
-                      border-radius: 3px;
-                      cursor: pointer;
-                      font-size: 11px;
-                      margin-left: 10px;
-                    ">Download</button>
+            flex-direction: column;
+            gap: 10px;
+            animation: aamFadeIn 0.3s ease-out;
           `;
 
-          element.parentNode.insertBefore(messageDiv, element.nextSibling);
+          helper.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 18px;">📎</span>
+              <span style="font-weight: 700; color: #1e293b; font-size: 14px;">Manual Resume Upload Required</span>
+            </div>
+            <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.4;">
+              Browsers block automatic file uploads for security. Download your CV below and then click <strong>Browse</strong> to upload it.
+            </p>
+            <div style="display: flex; align-items: center; justify-content: space-between; background: white; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
+              <span style="font-family: monospace; font-size: 12px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
+                ${escapeHtml(fileName)}
+              </span>
+              <button class="aam-download-btn" data-filename="${escapeHtml(fileName)}" data-filecontent="${escapeHtml(fileContent)}"
+                      style="
+                        background: #2563eb;
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 6px;
+                        font-weight: 600;
+                        font-size: 12px;
+                        cursor: pointer;
+                        transition: background 0.2s;
+                      ">Download CV</button>
+            </div>
+          `;
 
-          messageDiv.querySelector('.aam-download-btn').addEventListener('click', (event) => {
-            const btn = event.target;
+          // Placement: If the input is hidden, try to find the nearest visible parent or sibling
+          let target = element;
+          if (window.getComputedStyle(element).display === 'none' || element.type === 'hidden') {
+            target = element.closest('.rec-form-field, .field-wrapper, .form-group') || element.parentNode;
+          }
+
+          if (target && target.parentNode) {
+            target.parentNode.insertBefore(helper, target.nextSibling);
+          }
+
+          helper.querySelector('.aam-download-btn').addEventListener('click', (event) => {
+            const btn = event.currentTarget;
             const dlFileName = btn.dataset.filename;
             const dlFileContent = btn.dataset.filecontent;
             if (dlFileName && dlFileContent) {
               const link = document.createElement('a');
-              link.href = dlFileContent; // Base64 content directly as href
+              link.href = dlFileContent;
               link.download = dlFileName;
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
+
+              btn.textContent = 'Downloaded!';
+              btn.style.background = '#16a34a';
+              setTimeout(() => {
+                btn.textContent = 'Download CV';
+                btn.style.background = '#2563eb';
+              }, 3000);
             }
           });
-          skipped++; // Mark as skipped for autofill, as user interaction is needed
-          continue; // Skip further processing for this field
+
+          skipped++;
+          continue;
         } else {
           skipped++;
           continue;
