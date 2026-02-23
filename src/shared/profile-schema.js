@@ -14,6 +14,14 @@ var AAM = window.AAM || {};
 AAM.PROFILE_FIELDS = [
   // ── Personal ──────────────────────────────────────
   {
+    key: 'salutation',
+    label: 'Salutation (Mr., Ms., etc.)',
+    type: 'text',
+    group: 'personal',
+    keywords: ['salutation', 'title', 'prefix', 'honorific', 'mr', 'ms', 'mrs', 'dr'],
+    aliases: [/salutation/i, /honorific/i, /^title$/i, /prefix/i],
+  },
+  {
     key: 'firstName',
     label: 'First Name',
     type: 'text',
