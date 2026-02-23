@@ -100,7 +100,7 @@ AAM.Autofill = {
           filled: result.filled,
           skipped: result.skipped,
           unmatched: result.unmatched,
-        });
+        }, detectedFields, siteKey);
       }
 
       return {

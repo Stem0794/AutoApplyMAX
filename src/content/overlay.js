@@ -13,14 +13,24 @@ AAM.Overlay = {
   /**
    * Show the autofill result overlay.
    * @param {{filled: number, skipped: number, unmatched: number}} stats
+   * @param {Array} detectedFields
+   * @param {string} siteKey
    */
-  show(stats) {
+  show(stats, detectedFields = [], siteKey = '') {
     this.remove(); // Remove any existing overlay
+
+    const unmatchedFields = (detectedFields || []).filter(
+      f => f.source === 'unmatched' || f.confidence < AAM.CONSTANTS.CONFIDENCE_LOW
+    );
 
     const container = document.createElement('div');
     container.id = 'aam-overlay';
     container.setAttribute('role', 'alert');
     container.setAttribute('aria-live', 'polite');
+
+    const profileOptions = AAM.PROFILE_FIELDS.map(f =>
+      `<option value="${f.key}">${f.label}</option>`
+    ).join('');
 
     container.innerHTML = `
       <style>
@@ -38,25 +48,13 @@ AAM.Overlay = {
         }
 
         @keyframes aamSlideIn {
-          from {
-            transform: translateY(20px);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
+          from { transform: translateY(20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
         }
 
         @keyframes aamSlideOut {
-          from {
-            transform: translateY(0);
-            opacity: 1;
-          }
-          to {
-            transform: translateY(20px);
-            opacity: 0;
-          }
+          from { transform: translateY(0); opacity: 1; }
+          to { transform: translateY(20px); opacity: 0; }
         }
 
         #aam-overlay-card {
@@ -65,7 +63,7 @@ AAM.Overlay = {
           border-radius: 12px;
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
           padding: 16px 20px;
-          max-width: 340px;
+          max-width: 380px;
           min-width: 280px;
         }
 
@@ -86,76 +84,65 @@ AAM.Overlay = {
         }
 
         #aam-overlay-icon {
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          background: #1a7f37;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 12px;
-          font-weight: bold;
-          flex-shrink: 0;
+          width: 20px; height: 20px; border-radius: 50%;
+          background: #1a7f37; display: flex; align-items: center;
+          justify-content: center; color: white; font-size: 12px;
+          font-weight: bold; flex-shrink: 0;
         }
 
         #aam-overlay-close {
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: #666;
-          font-size: 18px;
-          line-height: 1;
-          padding: 2px 6px;
-          border-radius: 4px;
-          transition: background 0.15s;
+          background: none; border: none; cursor: pointer;
+          color: #666; font-size: 18px; padding: 2px 6px;
+          border-radius: 4px; transition: background 0.15s;
         }
 
-        #aam-overlay-close:hover {
-          background: #f0f0f0;
-          color: #333;
-        }
+        #aam-overlay-close:hover { background: #f0f0f0; color: #333; }
 
         #aam-overlay-stats {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 12px;
-          padding: 8px 0;
-          border-top: 1px solid #f0f0f0;
-          border-bottom: 1px solid #f0f0f0;
+          display: flex; gap: 12px; margin-bottom: 12px;
+          padding: 8px 0; border-top: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0;
         }
 
-        .aam-stat {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          flex: 1;
-        }
-
-        .aam-stat-number {
-          font-size: 18px;
-          font-weight: 700;
-          color: #333;
-        }
-
-        .aam-stat-label {
-          font-size: 11px;
-          color: #888;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
+        .aam-stat { display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .aam-stat-number { font-size: 18px; font-weight: 700; color: #333; }
+        .aam-stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
         .aam-stat-filled .aam-stat-number { color: #1a7f37; }
         .aam-stat-unmatched .aam-stat-number { color: #d4a017; }
 
-        #aam-overlay-message {
-          font-size: 13px;
-          color: #555;
-          text-align: center;
+        #aam-overlay-message { font-size: 13px; color: #555; text-align: center; margin-bottom: 10px; }
+        #aam-overlay-message strong { color: #333; }
+        
+        #aam-train-toggle {
+          display: block; width: 100%; padding: 6px;
+          background: #f8f9fa; border: 1px solid #dee2e6;
+          border-radius: 6px; color: #495057; font-size: 12px;
+          font-weight: 600; cursor: pointer; text-align: center;
+          transition: all 0.2s;
+        }
+        #aam-train-toggle:hover { background: #e9ecef; }
+
+        #aam-train-content {
+          margin-top: 12px; max-height: 200px;
+          overflow-y: auto; display: none;
+          padding: 10px; background: #fafafa;
+          border-radius: 8px; border: 1px solid #eee;
         }
 
-        #aam-overlay-message strong {
-          color: #333;
+        .aam-train-item {
+          margin-bottom: 10px; padding-bottom: 10px;
+          border-bottom: 1px solid #eee;
+        }
+        .aam-train-item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        
+        .aam-train-label {
+          display: block; font-size: 11px; color: #666;
+          margin-bottom: 4px; white-space: nowrap; overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .aam-train-select {
+          width: 100%; padding: 4px; font-size: 12px;
+          border-radius: 4px; border: 1px solid #ccc;
         }
       </style>
       <div id="aam-overlay-card">
@@ -183,18 +170,77 @@ AAM.Overlay = {
         <div id="aam-overlay-message">
           <strong>Please review your info</strong> before manually submitting.
         </div>
+        
+        ${unmatchedFields.length > 0 ? `
+          <button id="aam-train-toggle">Fix ${unmatchedFields.length} Unknown Fields &darr;</button>
+          <div id="aam-train-content">
+            ${unmatchedFields.map((field, idx) => `
+              <div class="aam-train-item">
+                <span class="aam-train-label" title="${field.context}">${field.context || 'Field ' + (idx + 1)}</span>
+                <select class="aam-train-select" data-selector="${encodeURIComponent(field.selector)}">
+                  <option value="">-- Map this field --</option>
+                  ${profileOptions}
+                </select>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
       </div>
     `;
 
     document.body.appendChild(container);
     this._container = container;
 
+    // Toggle training content
+    const toggle = container.querySelector('#aam-train-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        const content = container.querySelector('#aam-train-content');
+        const isHidden = content.style.display === 'none' || !content.style.display;
+        content.style.display = isHidden ? 'block' : 'none';
+        toggle.innerHTML = isHidden ? 'Close Trainer &uarr;' : `Fix ${unmatchedFields.length} Unknown Fields &darr;`;
+
+        // Disable auto-dismiss when training
+        if (this._dismissTimer) {
+          clearTimeout(this._dismissTimer);
+          this._dismissTimer = null;
+        }
+      });
+    }
+
+    // Handle mapping selection
+    container.querySelectorAll('.aam-train-select').forEach(select => {
+      select.addEventListener('change', async (e) => {
+        const profileKey = e.target.value;
+        const selector = decodeURIComponent(e.target.dataset.selector);
+
+        if (profileKey && siteKey) {
+          try {
+            await AAM.Storage.saveMapping(siteKey, selector, profileKey);
+
+            // Highlight the field we just mapped
+            const el = document.querySelector(selector);
+            if (el) {
+              el.style.boxShadow = '0 0 0 3px rgba(26, 127, 55, 0.5)';
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            // Remove the item from the list
+            e.target.closest('.aam-train-item').style.opacity = '0.5';
+            e.target.disabled = true;
+          } catch (err) {
+            console.error('[AutoApplyMAX] Failed to save mapping:', err);
+          }
+        }
+      });
+    });
+
     // Close button
     container.querySelector('#aam-overlay-close').addEventListener('click', () => {
       this.remove();
     });
 
-    // Auto-dismiss after 15 seconds
+    // Auto-dismiss after 15 seconds if not interacting
     this._dismissTimer = setTimeout(() => this.remove(), 15000);
   },
 
