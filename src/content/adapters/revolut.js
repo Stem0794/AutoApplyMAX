@@ -36,6 +36,10 @@
                 else if (text.includes('gender')) input.dataset.aamRevolut = 'gender';
                 else if (text.includes('ethnicity')) input.dataset.aamRevolut = 'ethnicity';
             });
+
+            // Specific tagging for phone country code (it doesn't have a direct label text match usually)
+            const phoneCodeTrigger = document.querySelector('input[aria-label="Search phone country codes"]');
+            if (phoneCodeTrigger) phoneCodeTrigger.dataset.aamRevolut = 'phoneCountryCode';
         },
 
         getKnownMappings() {
@@ -53,6 +57,7 @@
                 { selector: 'input[data-aam-revolut="locations"]', profileKey: 'preferredLocations' },
                 { selector: 'input[data-aam-revolut="gender"]', profileKey: 'gender' },
                 { selector: 'input[data-aam-revolut="ethnicity"]', profileKey: 'ethnicity' },
+                { selector: 'input[data-aam-revolut="phoneCountryCode"]', profileKey: 'phoneCountryCode' },
             ];
         },
 
