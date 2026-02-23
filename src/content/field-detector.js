@@ -117,6 +117,45 @@ AAM.FieldDetector = {
   },
 
   /**
+   * Get a human-readable label for the field to show in the UI.
+   * @param {HTMLElement} field
+   * @returns {string}
+   */
+  getDisplayLabel(field) {
+    // 1. Associated <label>
+    if (field.id) {
+      const label = document.querySelector(`label[for="${CSS.escape(field.id)}"]`);
+      if (label && label.textContent.trim()) return label.textContent.trim();
+    }
+    // 2. Parent label
+    const parentLabel = field.closest('label');
+    if (parentLabel && parentLabel.textContent.trim()) {
+      // Remove the field's own text if it's inside the label
+      return parentLabel.textContent.replace(field.textContent, '').trim();
+    }
+    // 3. aria-label
+    const ariaLabel = field.getAttribute('aria-label');
+    if (ariaLabel) return ariaLabel;
+
+    // 4. placeholder
+    if (field.placeholder) return field.placeholder;
+
+    // 5. Closest preceding text
+    let prev = field.previousElementSibling;
+    if (prev && prev.textContent.trim() && prev.textContent.trim().length < 50) {
+      return prev.textContent.trim();
+    }
+
+    // 6. Name or ID as last resort (cleaned up)
+    const raw = field.getAttribute('name') || field.id || '';
+    if (raw) {
+      return raw.replace(/rec-form_/, '').replace(/_/g, ' ').trim();
+    }
+
+    return 'Unnamed Field';
+  },
+
+  /**
   * Score how well a context string matches a profile field definition.
   * @param {string} context - the lowercase context string
   * @param {object} fieldDef - a profile field definition from PROFILE_FIELDS
@@ -263,6 +302,7 @@ AAM.FieldDetector = {
     for (const field of fields) {
       const selector = this.buildSelector(field);
       const context = this.getFieldContext(field);
+      const displayLabel = this.getDisplayLabel(field);
 
       // Check learned mappings first
       if (siteMappings[selector]) {
@@ -272,6 +312,7 @@ AAM.FieldDetector = {
           profileKey: siteMappings[selector],
           confidence: 1.0, // learned mapping = full confidence
           context,
+          displayLabel,
           source: 'learned',
         });
         continue;
@@ -300,6 +341,7 @@ AAM.FieldDetector = {
         profileKey: bestScore >= AAM.CONSTANTS.CONFIDENCE_LOW ? bestKey : null,
         confidence: bestScore,
         context,
+        displayLabel,
         source: bestScore >= AAM.CONSTANTS.CONFIDENCE_LOW ? 'heuristic' : 'unmatched',
       });
     }

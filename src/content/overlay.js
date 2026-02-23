@@ -129,13 +129,16 @@ AAM.Overlay = {
         }
 
         .aam-train-item {
-          margin-bottom: 10px; padding-bottom: 10px;
+          margin-bottom: 10px; padding: 6px;
           border-bottom: 1px solid #eee;
+          border-radius: 4px;
+          transition: background 0.2s;
         }
+        .aam-train-item:hover { background: #eef2ff; }
         .aam-train-item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
         
         .aam-train-label {
-          display: block; font-size: 11px; color: #666;
+          display: block; font-size: 11px; color: #444; font-weight: 600;
           margin-bottom: 4px; white-space: nowrap; overflow: hidden;
           text-overflow: ellipsis;
         }
@@ -143,6 +146,12 @@ AAM.Overlay = {
         .aam-train-select {
           width: 100%; padding: 4px; font-size: 12px;
           border-radius: 4px; border: 1px solid #ccc;
+        }
+
+        @keyframes aamPulse {
+          0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
+          70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
         }
       </style>
       <div id="aam-overlay-card">
@@ -175,9 +184,9 @@ AAM.Overlay = {
           <button id="aam-train-toggle">Fix ${unmatchedFields.length} Unknown Fields &darr;</button>
           <div id="aam-train-content">
             ${unmatchedFields.map((field, idx) => `
-              <div class="aam-train-item">
-                <span class="aam-train-label" title="${field.context}">${field.context || 'Field ' + (idx + 1)}</span>
-                <select class="aam-train-select" data-selector="${encodeURIComponent(field.selector)}">
+              <div class="aam-train-item" data-selector="${encodeURIComponent(field.selector)}">
+                <span class="aam-train-label" title="${field.context}">${field.displayLabel || 'Field ' + (idx + 1)}</span>
+                <select class="aam-train-select">
                   <option value="">-- Map this field --</option>
                   ${profileOptions}
                 </select>
@@ -208,11 +217,35 @@ AAM.Overlay = {
       });
     }
 
+    // Handle hovering over training items to highlight fields
+    container.querySelectorAll('.aam-train-item').forEach(item => {
+      const selector = decodeURIComponent(item.dataset.selector);
+      const el = document.querySelector(selector);
+
+      item.addEventListener('mouseenter', () => {
+        if (el) {
+          el.style.outline = '3px solid #6366f1';
+          el.style.outlineOffset = '2px';
+          el.style.animation = 'aamPulse 1.5s infinite';
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+
+      item.addEventListener('mouseleave', () => {
+        if (el) {
+          el.style.outline = '';
+          el.style.outlineOffset = '';
+          el.style.animation = '';
+        }
+      });
+    });
+
     // Handle mapping selection
     container.querySelectorAll('.aam-train-select').forEach(select => {
       select.addEventListener('change', async (e) => {
         const profileKey = e.target.value;
-        const selector = decodeURIComponent(e.target.dataset.selector);
+        const item = e.target.closest('.aam-train-item');
+        const selector = decodeURIComponent(item.dataset.selector);
 
         if (profileKey && siteKey) {
           try {
@@ -221,12 +254,14 @@ AAM.Overlay = {
             // Highlight the field we just mapped
             const el = document.querySelector(selector);
             if (el) {
+              el.style.outline = '';
+              el.style.animation = '';
               el.style.boxShadow = '0 0 0 3px rgba(26, 127, 55, 0.5)';
-              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
 
             // Remove the item from the list
-            e.target.closest('.aam-train-item').style.opacity = '0.5';
+            item.style.opacity = '0.5';
+            item.style.pointerEvents = 'none';
             e.target.disabled = true;
           } catch (err) {
             console.error('[AutoApplyMAX] Failed to save mapping:', err);
