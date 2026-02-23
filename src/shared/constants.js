@@ -34,6 +34,11 @@ AAM.CONSTANTS = {
     HIREHIVE: ['hirehive.com'],
   },
 
+  // Supabase Configuration (Sync shared mappings)
+  SUPABASE_URL: '', // User will provide
+  SUPABASE_KEY: '', // User will provide
+  SUPABASE_TABLE: 'field_mappings',
+
   // Message types for background ↔ content communication
   MSG: {
     TRIGGER_AUTOFILL: 'aam:trigger_autofill',

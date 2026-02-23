@@ -215,6 +215,12 @@ async function loadSettings() {
     const settings = await AAM.Storage.getSettings();
     document.getElementById('setting-highlight').checked = settings.highlightFilled !== false;
     document.getElementById('setting-overlay').checked = settings.showOverlay !== false;
+    document.getElementById('setting-supabase-url').value = settings.supabaseUrl || '';
+    document.getElementById('setting-supabase-key').value = settings.supabaseKey || '';
+
+    // Update constants with loaded values
+    if (settings.supabaseUrl) AAM.CONSTANTS.SUPABASE_URL = settings.supabaseUrl;
+    if (settings.supabaseKey) AAM.CONSTANTS.SUPABASE_KEY = settings.supabaseKey;
   } catch (err) {
     console.warn('Failed to load settings:', err);
   }
@@ -224,9 +230,17 @@ async function saveSettings() {
   const settings = {
     highlightFilled: document.getElementById('setting-highlight').checked,
     showOverlay: document.getElementById('setting-overlay').checked,
+    supabaseUrl: document.getElementById('setting-supabase-url').value.trim(),
+    supabaseKey: document.getElementById('setting-supabase-key').value.trim(),
   };
+
+  // Update constants immediately
+  AAM.CONSTANTS.SUPABASE_URL = settings.supabaseUrl;
+  AAM.CONSTANTS.SUPABASE_KEY = settings.supabaseKey;
+
   try {
     await AAM.Storage.saveSettings(settings);
+    showStatus('Settings saved!', 'success');
   } catch (err) {
     console.warn('Failed to save settings:', err);
   }
@@ -400,7 +414,7 @@ function formatDate(isoString) {
   try {
     const d = new Date(isoString);
     return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
-           ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   } catch {
     return isoString;
   }
@@ -468,6 +482,8 @@ function initEventListeners() {
   // Settings toggles — auto-save
   document.getElementById('setting-highlight').addEventListener('change', saveSettings);
   document.getElementById('setting-overlay').addEventListener('change', saveSettings);
+  document.getElementById('setting-supabase-url').addEventListener('change', saveSettings);
+  document.getElementById('setting-supabase-key').addEventListener('change', saveSettings);
 
   // History: search filter
   document.getElementById('history-search').addEventListener('input', e => {

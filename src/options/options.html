@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AutoApplyMAX — Profile Settings</title>
   <link rel="stylesheet" href="options.css">
 </head>
+
 <body>
   <div class="container">
     <!-- Header -->
@@ -93,6 +95,21 @@
             <input type="checkbox" id="setting-overlay" checked>
             <span class="toggle"></span>
           </label>
+
+          <div class="setting-group-header">
+            <h3>Cloud Sync (Supabase)</h3>
+            <p>Sync your learned mappings to share them with other users.</p>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="setting-supabase-url">Supabase URL</label>
+            <input type="text" id="setting-supabase-url" placeholder="https://xyz.supabase.co">
+          </div>
+
+          <div class="form-group full-width">
+            <label for="setting-supabase-key">Supabase Anon Key</label>
+            <input type="password" id="setting-supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+          </div>
         </div>
       </div>
 
@@ -111,7 +128,8 @@
           </div>
         </div>
         <div id="history-filters" class="history-filters">
-          <input type="text" id="history-search" class="history-search" placeholder="Search by title, company, or ATS...">
+          <input type="text" id="history-search" class="history-search"
+            placeholder="Search by title, company, or ATS...">
         </div>
         <div id="history-content">
           <p class="empty-state">Loading...</p>
@@ -148,7 +166,9 @@
 
   <script src="../shared/constants.js"></script>
   <script src="../shared/profile-schema.js"></script>
+  <script src="../shared/supabase.js"></script>
   <script src="../shared/storage.js"></script>
   <script src="options.js"></script>
 </body>
+
 </html>

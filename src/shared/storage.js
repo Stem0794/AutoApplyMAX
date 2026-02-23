@@ -22,6 +22,17 @@ AAM.Storage = {
   },
 
   /**
+   * Internal helper to make sure Supabase constants are up to date from settings
+   */
+  async _ensureSupabaseConfig() {
+    if (!AAM.CONSTANTS.SUPABASE_URL || !AAM.CONSTANTS.SUPABASE_KEY) {
+      const settings = await this.getSettings();
+      if (settings.supabaseUrl) AAM.CONSTANTS.SUPABASE_URL = settings.supabaseUrl;
+      if (settings.supabaseKey) AAM.CONSTANTS.SUPABASE_KEY = settings.supabaseKey;
+    }
+  },
+
+  /**
    * Set value(s) in chrome.storage.local
    * @param {object} data
    * @returns {Promise<void>}
@@ -74,12 +85,21 @@ AAM.Storage = {
    * @returns {Promise<void>}
    */
   async saveMapping(siteKey, selector, profileKey) {
+    // 0. Ensure config
+    await this._ensureSupabaseConfig();
+
+    // 1. Save locally
     const mappings = await this.getMappings();
     if (!mappings[siteKey]) {
       mappings[siteKey] = {};
     }
     mappings[siteKey][selector] = profileKey;
-    return this.set({ [AAM.CONSTANTS.STORAGE_MAPPINGS]: mappings });
+    await this.set({ [AAM.CONSTANTS.STORAGE_MAPPINGS]: mappings });
+
+    // 2. Sync to Supabase (fire and forget)
+    AAM.Supabase.saveMapping(siteKey, selector, profileKey).catch(err => {
+      console.error('[AutoApplyMAX] Supabase sync failed:', err);
+    });
   },
 
   /**
@@ -88,8 +108,27 @@ AAM.Storage = {
    * @returns {Promise<object>}
    */
   async getSiteMappings(siteKey) {
+    // 0. Ensure config
+    await this._ensureSupabaseConfig();
+
+    // 1. Get local mappings
     const mappings = await this.getMappings();
-    return mappings[siteKey] || {};
+    const localSiteMappings = mappings[siteKey] || {};
+
+    // 2. Try to get shared mappings from Supabase
+    const sharedMappings = await AAM.Supabase.getMappings(siteKey);
+
+    if (!sharedMappings || sharedMappings.length === 0) {
+      return localSiteMappings;
+    }
+
+    // 3. Merge: local mappings take precedence over shared ones
+    const merged = {};
+    sharedMappings.forEach(m => {
+      merged[m.selector] = m.profile_key;
+    });
+
+    return { ...merged, ...localSiteMappings };
   },
 
   /**
