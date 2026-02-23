@@ -375,6 +375,114 @@ AAM.Overlay = {
       }, 200);
     }
   },
+
+  /**
+   * Show a proactive "Prefill" trigger button
+   * @param {Function} onTrigger - callback when clicked
+   */
+  showTrigger(onTrigger) {
+    this.remove();
+
+    const container = document.createElement('div');
+    container.id = 'aam-overlay';
+    container.innerHTML = `
+      <style>
+        #aam-overlay {
+          position: fixed;
+          bottom: 24px;
+          right: 24px;
+          z-index: ${AAM.CONSTANTS.OVERLAY_Z};
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          animation: aamSlideIn 0.3s ease-out;
+        }
+        #aam-trigger-card {
+          background: rgba(255, 255, 255, 0.9);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border: 1px solid rgba(37, 99, 235, 0.2);
+          border-radius: 50px;
+          padding: 8px 10px 8px 16px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(37, 99, 235, 0.1);
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #aam-trigger-card:hover {
+          transform: translateY(-3px) scale(1.02);
+          box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1), 0 6px 15px rgba(37, 99, 235, 0.15);
+          border-color: rgba(37, 99, 235, 0.4);
+        }
+        #aam-trigger-logo {
+          width: 28px; height: 28px; border-radius: 50%;
+          background: linear-gradient(135deg, #2563eb, #7c3aed);
+          color: white; display: flex; align-items: center;
+          justify-content: center; font-weight: 800; font-size: 14px;
+          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+          position: relative;
+        }
+        #aam-trigger-logo::after {
+          content: '';
+          position: absolute;
+          top: -2px; right: -2px;
+          width: 8px; height: 8px;
+          background: #10b981;
+          border: 2px solid white;
+          border-radius: 50%;
+        }
+        #aam-trigger-text {
+          font-size: 14px; font-weight: 600; color: #1e293b;
+          letter-spacing: -0.2px;
+        }
+        #aam-trigger-btn {
+          background: #2563eb; color: white; border: none;
+          padding: 7px 16px; border-radius: 20px; font-size: 12px;
+          font-weight: 700; cursor: pointer;
+          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+          transition: background 0.2s;
+        }
+        #aam-trigger-btn:hover {
+          background: #1d4ed8;
+        }
+        #aam-trigger-close {
+          background: none; border: none; cursor: pointer;
+          color: #94a3b8; font-size: 18px; padding: 0 4px;
+          margin-left: 4px;
+        }
+        #aam-trigger-close:hover { color: #64748b; }
+      </style>
+      <div id="aam-trigger-card">
+        <div id="aam-trigger-logo">A</div>
+        <div id="aam-trigger-text">AutoApplyMAX is ready</div>
+        <button id="aam-trigger-btn">Prefill Form</button>
+        <button id="aam-trigger-close" title="Dismiss">&times;</button>
+      </div>
+    `;
+
+    document.body.appendChild(container);
+    this._container = container;
+
+    const card = container.querySelector('#aam-trigger-card');
+    const btn = container.querySelector('#aam-trigger-btn');
+    const close = container.querySelector('#aam-trigger-close');
+
+    const handleTrigger = (e) => {
+      e.stopPropagation();
+      onTrigger();
+    };
+
+    btn.addEventListener('click', handleTrigger);
+    card.addEventListener('click', handleTrigger);
+
+    close.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.remove();
+    });
+
+    // Auto-dismiss after 30 seconds if not clicked
+    this._dismissTimer = setTimeout(() => this.remove(), 30000);
+  },
 };
 
 window.AAM = AAM;

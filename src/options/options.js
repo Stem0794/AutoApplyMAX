@@ -215,6 +215,7 @@ async function loadSettings() {
     const settings = await AAM.Storage.getSettings();
     document.getElementById('setting-highlight').checked = settings.highlightFilled !== false;
     document.getElementById('setting-overlay').checked = settings.showOverlay !== false;
+    document.getElementById('setting-proactive').checked = settings.showProactiveTrigger !== false;
     document.getElementById('setting-supabase-url').value = settings.supabaseUrl || '';
     document.getElementById('setting-supabase-key').value = settings.supabaseKey || '';
 
@@ -230,6 +231,7 @@ async function saveSettings() {
   const settings = {
     highlightFilled: document.getElementById('setting-highlight').checked,
     showOverlay: document.getElementById('setting-overlay').checked,
+    showProactiveTrigger: document.getElementById('setting-proactive').checked,
     supabaseUrl: document.getElementById('setting-supabase-url').value.trim(),
     supabaseKey: document.getElementById('setting-supabase-key').value.trim(),
   };
@@ -522,6 +524,7 @@ function initEventListeners() {
   // Settings toggles — auto-save
   document.getElementById('setting-highlight').addEventListener('change', saveSettings);
   document.getElementById('setting-overlay').addEventListener('change', saveSettings);
+  document.getElementById('setting-proactive').addEventListener('change', saveSettings);
   document.getElementById('setting-supabase-url').addEventListener('change', saveSettings);
   document.getElementById('setting-supabase-key').addEventListener('change', saveSettings);
 

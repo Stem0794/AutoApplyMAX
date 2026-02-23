@@ -141,6 +141,7 @@ AAM.Storage = {
       autoTrigger: false,
       highlightFilled: true,
       showOverlay: true,
+      showProactiveTrigger: true,
     };
   },
 

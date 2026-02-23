@@ -30,7 +30,46 @@ AAM.Autofill = {
     const adapter = AAM.getAdapter();
     AAM.LearningEngine.start(adapter.getSiteKey());
 
+    // Proactively check if we should show the "Prefill" trigger
+    this.checkAndShowTrigger();
+
     console.log('[AutoApplyMAX] Content script loaded on', window.location.hostname);
+  },
+
+  /**
+   * Check if the current page can be prefilled and show a proactive overlay button.
+   */
+  async checkAndShowTrigger() {
+    try {
+      // Delay slightly to allow SPA content to load
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 1. Check if we have a profile
+      const profile = await AAM.Storage.getProfile();
+      if (!profile || Object.keys(profile).length === 0) return;
+
+      // 2. Get the settings
+      const settings = await AAM.Storage.getSettings();
+      if (settings.showProactiveTrigger === false) return;
+
+      // 3. Get the adapter
+      const adapter = AAM.getAdapter();
+      // Only show for specific ATS adapters, not the generic fallback
+      if (adapter.name === 'Generic') return;
+
+      // 4. Look for fields (briefly)
+      // We don't run a full prepare() here, just a quick check
+      const detectedFields = AAM.FieldDetector.detectFields();
+
+      // If we find any form fields, show the trigger
+      if (detectedFields.length > 0) {
+        AAM.Overlay.showTrigger(() => {
+          this.run();
+        });
+      }
+    } catch (err) {
+      console.warn('[AutoApplyMAX] Trigger check failed:', err);
+    }
   },
 
   /**
