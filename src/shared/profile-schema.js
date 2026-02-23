@@ -54,6 +54,14 @@ AAM.PROFILE_FIELDS = [
     aliases: [/e[\s_-]?mail/i, /email[\s_-]?address/i],
   },
   {
+    key: 'phoneCountryCode',
+    label: 'Phone Country Code (e.g., +33)',
+    type: 'text',
+    group: 'personal',
+    keywords: ['country code', 'area code', 'dialing code', 'phone country', 'phone code', '+'],
+    aliases: [/country[\s_-]?code/i, /dialling[\s_-]?code/i, /phone[\s_-]?code/i],
+  },
+  {
     key: 'phone',
     label: 'Phone Number',
     type: 'tel',
