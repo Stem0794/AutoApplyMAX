@@ -12,25 +12,22 @@ AAM.Overlay = {
 
   /**
    * Show the autofill result overlay.
-   * @param {{filled: number, skipped: number, unmatched: number}} stats
+   * @param {{filled: number, skipped: number}} stats
    * @param {Array} detectedFields
    * @param {string} siteKey
    */
   show(stats, detectedFields = [], siteKey = '') {
-    this.remove(); // Remove any existing overlay
-
     const reviewFields = (detectedFields || []).filter(
       f => f.source === 'unmatched' || f.confidence < AAM.CONSTANTS.CONFIDENCE_LOW || f.status === 'missing_value'
     );
 
-    const container = document.createElement('div');
-    container.id = 'aam-overlay';
-    container.setAttribute('role', 'alert');
-    container.setAttribute('aria-live', 'polite');
-
     const profileOptions = AAM.PROFILE_FIELDS.map(f =>
       `<option value="${f.key}">${f.label}</option>`
     ).join('');
+
+    const container = this._getOrCreateContainer();
+    container.setAttribute('role', 'alert');
+    container.setAttribute('aria-live', 'polite');
 
     container.innerHTML = `
       <style>
@@ -39,22 +36,22 @@ AAM.Overlay = {
           bottom: 24px;
           right: 24px;
           z-index: ${AAM.CONSTANTS.OVERLAY_Z};
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           font-size: 14px;
           line-height: 1.5;
           color: #1a1a1a;
           pointer-events: auto;
-          animation: aamSlideIn 0.3s ease-out;
+          animation: aamSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         @keyframes aamSlideIn {
-          from { transform: translateY(20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
+          from { transform: translateY(20px) scale(0.95); opacity: 0; }
+          to { transform: translateY(0) scale(1); opacity: 1; }
         }
 
         @keyframes aamSlideOut {
-          from { transform: translateY(0); opacity: 1; }
-          to { transform: translateY(20px); opacity: 0; }
+          from { transform: translateY(0) scale(1); opacity: 1; }
+          to { transform: translateY(20px) scale(0.95); opacity: 0; }
         }
 
         @keyframes aamFadeIn {
@@ -64,61 +61,65 @@ AAM.Overlay = {
 
         #aam-overlay-card {
           background: #ffffff;
-          border: 1px solid #e0e0e0;
-          border-radius: 12px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
-          padding: 16px 20px;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12), 0 2px 10px rgba(0, 0, 0, 0.05);
+          padding: 20px;
           max-width: 380px;
-          min-width: 280px;
+          min-width: 300px;
+          transition: all 0.3s ease;
         }
 
         #aam-overlay-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 10px;
+          margin-bottom: 16px;
         }
 
         #aam-overlay-title {
           display: flex;
           align-items: center;
-          gap: 8px;
-          font-weight: 600;
-          font-size: 15px;
-          color: #1a7f37;
+          gap: 10px;
+          font-weight: 700;
+          font-size: 16px;
+          color: #0f172a;
         }
 
         #aam-overlay-icon {
-          width: 20px; height: 20px; border-radius: 50%;
-          background: #1a7f37; display: flex; align-items: center;
-          justify-content: center; color: white; font-size: 12px;
+          width: 24px; height: 24px; border-radius: 50%;
+          background: #10b981; display: flex; align-items: center;
+          justify-content: center; color: white; font-size: 14px;
           font-weight: bold; flex-shrink: 0;
+          box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
         }
 
         #aam-overlay-close {
           background: none; border: none; cursor: pointer;
-          color: #666; font-size: 18px; padding: 2px 6px;
-          border-radius: 4px; transition: background 0.15s;
+          color: #94a3b8; font-size: 20px; padding: 4px;
+          border-radius: 8px; transition: all 0.2s;
+          display: flex; align-items: center; justify-content: center;
         }
 
-        #aam-overlay-close:hover { background: #f0f0f0; color: #333; }
+        #aam-overlay-close:hover { background: #f1f5f9; color: #475569; }
 
         #aam-overlay-stats {
-          display: flex; gap: 12px; margin-bottom: 12px;
-          padding: 8px 0; border-top: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0;
+          display: flex; gap: 12px; margin-bottom: 16px;
+          padding: 12px; background: #f8fafc; border-radius: 12px;
+          border: 1px solid #f1f5f9;
         }
 
         .aam-stat { display: flex; flex-direction: column; align-items: center; flex: 1; }
-        .aam-stat-number { font-size: 18px; font-weight: 700; color: #333; }
-        .aam-stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
-        .aam-stat-filled .aam-stat-number { color: #1a7f37; }
+        .aam-stat-number { font-size: 20px; font-weight: 800; color: #1e293b; }
+        .aam-stat-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+        .aam-stat-filled .aam-stat-number { color: #10b981; }
         .aam-stat-review .aam-stat-number { color: #f59e0b; }
 
         .aam-missing-badge {
           font-size: 9px;
           background: #fee2e2;
           color: #b91c1c;
-          padding: 1px 4px;
+          padding: 1px 6px;
           border-radius: 4px;
           margin-left: 6px;
           text-transform: uppercase;
@@ -128,17 +129,18 @@ AAM.Overlay = {
           border: 1px solid #fca5a5;
         }
 
-        #aam-overlay-message { font-size: 13px; color: #555; text-align: center; margin-bottom: 10px; }
-        #aam-overlay-message strong { color: #333; }
+        #aam-overlay-message { font-size: 13px; color: #475569; text-align: center; margin-bottom: 16px; line-height: 1.5; }
+        #aam-overlay-message strong { color: #1e293b; }
         
         #aam-train-toggle {
-          display: block; width: 100%; padding: 6px;
-          background: #f8f9fa; border: 1px solid #dee2e6;
-          border-radius: 6px; color: #495057; font-size: 12px;
+          display: block; width: 100%; padding: 10px;
+          background: #ffffff; border: 1px solid #e2e8f0;
+          border-radius: 10px; color: #475569; font-size: 13px;
           font-weight: 600; cursor: pointer; text-align: center;
           transition: all 0.2s;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
-        #aam-train-toggle:hover { background: #e9ecef; }
+        #aam-train-toggle:hover { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; }
 
         #aam-train-content {
           margin-top: 12px; max-height: 200px;
@@ -148,39 +150,36 @@ AAM.Overlay = {
         }
 
         .aam-train-item {
-          margin-bottom: 12px; padding: 10px;
-          border-bottom: 1px solid #eee;
+          margin-bottom: 12px; padding: 12px;
+          border: 1px solid #f1f5f9;
           background: #ffffff;
-          border-radius: 8px;
-          transition: transform 0.2s, box-shadow 0.2s;
+          border-radius: 12px;
+          transition: all 0.2s;
         }
-        .aam-train-item:hover { transform: scale(1.02); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        .aam-train-item:last-child { border-bottom: none; }
+        .aam-train-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-color: #e2e8f0; }
+        .aam-train-item:last-child { margin-bottom: 4px; }
         
-        .aam-train-label-row {
-          display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;
-        }
-
-        .aam-train-label {
-          font-weight: 700; font-size: 13px; color: #1e293b; flex: 1;
-        }
+        .aam-train-label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .aam-train-label { font-weight: 700; font-size: 13px; color: #1e293b; flex: 1; }
 
         .aam-matched-badge {
           font-size: 10px; background: #e0f2fe; color: #0369a1;
           padding: 1px 6px; border-radius: 4px; text-transform: uppercase;
           font-weight: 700; border: 1px solid #bae6fd;
         }
-        
+
         .aam-train-select {
-          width: 100%; padding: 6px; font-size: 13px;
-          border-radius: 6px; border: 1px solid #cbd5e1;
-          color: #1e293b; background: white;
+          width: 100%; padding: 8px; font-size: 13px;
+          border-radius: 8px; border: 1px solid #e2e8f0;
+          color: #1e293b; background: #f8fafc;
+          outline: none; transition: border-color 0.2s;
         }
+        .aam-train-select:focus { border-color: #3b82f6; background: #ffffff; }
 
         @keyframes aamPulse {
-          0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
-          70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+          0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+          70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
         }
       </style>
       <div id="aam-overlay-card">
@@ -232,9 +231,6 @@ AAM.Overlay = {
       </div>
     `;
 
-    document.body.appendChild(container);
-    this._container = container;
-
     // Toggle training content
     const toggle = container.querySelector('#aam-train-toggle');
     if (toggle) {
@@ -259,7 +255,7 @@ AAM.Overlay = {
 
       item.addEventListener('mouseenter', () => {
         if (el) {
-          el.style.outline = '3px solid #6366f1';
+          el.style.outline = '3px solid #3b82f6';
           el.style.outlineOffset = '2px';
           el.style.animation = 'aamPulse 1.5s infinite';
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -393,33 +389,101 @@ AAM.Overlay = {
   },
 
   /**
-   * Remove the overlay from the DOM.
+   * Remove the current overlay with animation
+   * @param {boolean} immediate - skip animation
    */
-  remove() {
+  remove(immediate = false) {
     if (this._dismissTimer) {
       clearTimeout(this._dismissTimer);
       this._dismissTimer = null;
     }
-    if (this._container) {
-      this._container.style.animation = 'aamSlideOut 0.2s ease-in forwards';
+
+    const container = document.getElementById('aam-overlay');
+    if (!container) {
+      this._container = null;
+      return;
+    }
+
+    if (immediate) {
+      if (container.parentNode) container.parentNode.removeChild(container);
+      this._container = null;
+    } else {
+      container.style.animation = 'aamSlideOut 0.2s ease-in forwards';
       setTimeout(() => {
-        if (this._container && this._container.parentNode) {
-          this._container.parentNode.removeChild(this._container);
-        }
-        this._container = null;
+        if (container.parentNode) container.parentNode.removeChild(container);
+        if (this._container === container) this._container = null;
       }, 200);
     }
   },
 
   /**
+   * Internal helper to get or create the main overlay container
+   * @private
+   */
+  _getOrCreateContainer() {
+    let container = document.getElementById('aam-overlay');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'aam-overlay';
+      document.body.appendChild(container);
+    }
+    this._container = container;
+
+    // Clear auto-dismiss timer whenever we interact/update
+    if (this._dismissTimer) {
+      clearTimeout(this._dismissTimer);
+      this._dismissTimer = null;
+    }
+
+    return container;
+  },
+
+  /**
+   * Show a loading state within the existing overlay
+   */
+  showLoading(message = 'AutoApplyMAX is working...') {
+    const container = this._getOrCreateContainer();
+
+    container.innerHTML = `
+      <style>
+        #aam-overlay-loading {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 50px;
+          padding: 12px 24px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+          min-width: 240px;
+          animation: aamFadeIn 0.3s ease;
+        }
+        .aam-spinner {
+          width: 20px; height: 20px;
+          border: 3px solid #f3f3f3;
+          border-top: 3px solid #3b82f6;
+          border-radius: 50%;
+          animation: aamSpin 1s linear infinite;
+        }
+        @keyframes aamSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        #aam-loading-text { font-weight: 600; color: #1e293b; font-size: 14px; }
+      </style>
+      <div id="aam-overlay-loading">
+        <div class="aam-spinner"></div>
+        <div id="aam-loading-text">${message}</div>
+      </div>
+    `;
+  },
+
+  /**
    * Show a proactive "Prefill" trigger button
-   * @param {Function} onTrigger - callback when clicked
    */
   showTrigger(onTrigger) {
-    this.remove();
+    const container = this._getOrCreateContainer();
 
-    const container = document.createElement('div');
-    container.id = 'aam-overlay';
     container.innerHTML = `
       <style>
         #aam-overlay {
@@ -428,95 +492,65 @@ AAM.Overlay = {
           right: 24px;
           z-index: ${AAM.CONSTANTS.OVERLAY_Z};
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          animation: aamSlideIn 0.3s ease-out;
+          animation: aamSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
         #aam-trigger-card {
-          background: rgba(255, 255, 255, 0.9);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(37, 99, 235, 0.2);
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          border: 1px solid #e2e8f0;
           border-radius: 50px;
           padding: 8px 10px 8px 16px;
           display: flex;
           align-items: center;
           gap: 12px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(37, 99, 235, 0.1);
+          box-shadow: 0 10px 40px rgba(0,0,0,0.1);
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.3s ease;
         }
-        #aam-trigger-card:hover {
-          transform: translateY(-3px) scale(1.02);
-          box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1), 0 6px 15px rgba(37, 99, 235, 0.15);
-          border-color: rgba(37, 99, 235, 0.4);
-        }
+        #aam-trigger-card:hover { transform: translateY(-2px); box-shadow: 0 15px 45px rgba(0,0,0,0.12); }
         #aam-trigger-logo {
-          width: 28px; height: 28px; border-radius: 50%;
-          background: linear-gradient(135deg, #2563eb, #7c3aed);
+          width: 32px; height: 32px; border-radius: 50%;
+          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
           color: white; display: flex; align-items: center;
-          justify-content: center; font-weight: 800; font-size: 14px;
-          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
-          position: relative;
+          justify-content: center; font-weight: 800; font-size: 15px;
+          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
         }
-        #aam-trigger-logo::after {
-          content: '';
-          position: absolute;
-          top: -2px; right: -2px;
-          width: 8px; height: 8px;
-          background: #10b981;
-          border: 2px solid white;
-          border-radius: 50%;
-        }
-        #aam-trigger-text {
-          font-size: 14px; font-weight: 600; color: #1e293b;
-          letter-spacing: -0.2px;
-        }
+        #aam-trigger-text { font-size: 14px; font-weight: 600; color: #1e293b; }
         #aam-trigger-btn {
-          background: #2563eb; color: white; border: none;
-          padding: 7px 16px; border-radius: 20px; font-size: 12px;
-          font-weight: 700; cursor: pointer;
-          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
-          transition: background 0.2s;
+          background: #3b82f6; color: white; border: none;
+          padding: 8px 20px; border-radius: 20px; font-size: 13px;
+          font-weight: 700; cursor: pointer; transition: background 0.2s;
         }
-        #aam-trigger-btn:hover {
-          background: #1d4ed8;
-        }
+        #aam-trigger-btn:hover { background: #2563eb; }
         #aam-trigger-close {
           background: none; border: none; cursor: pointer;
-          color: #94a3b8; font-size: 18px; padding: 0 4px;
-          margin-left: 4px;
+          color: #94a3b8; font-size: 20px; padding: 0 8px;
         }
         #aam-trigger-close:hover { color: #64748b; }
       </style>
       <div id="aam-trigger-card">
-        <div id="aam-trigger-logo">A</div>
-        <div id="aam-trigger-text">AutoApplyMAX is ready</div>
+        <div id="aam-trigger-logo">M</div>
+        <div id="aam-trigger-text">AutoApplyMAX</div>
         <button id="aam-trigger-btn">Prefill Form</button>
         <button id="aam-trigger-close" title="Dismiss">&times;</button>
       </div>
     `;
 
-    document.body.appendChild(container);
-    this._container = container;
-
-    const card = container.querySelector('#aam-trigger-card');
-    const btn = container.querySelector('#aam-trigger-btn');
-    const close = container.querySelector('#aam-trigger-close');
-
-    const handleTrigger = (e) => {
+    const handleClick = (e) => {
       e.stopPropagation();
+      this.showLoading('Prefilling with Max...');
       onTrigger();
     };
 
-    btn.addEventListener('click', handleTrigger);
-    card.addEventListener('click', handleTrigger);
-
-    close.addEventListener('click', (e) => {
+    container.querySelector('#aam-trigger-btn').addEventListener('click', handleClick);
+    container.querySelector('#aam-trigger-card').addEventListener('click', handleClick);
+    container.querySelector('#aam-trigger-close').addEventListener('click', (e) => {
       e.stopPropagation();
       this.remove();
     });
 
-    // Auto-dismiss after 30 seconds if not clicked
-    this._dismissTimer = setTimeout(() => this.remove(), 30000);
+    this._dismissTimer = setTimeout(() => this.remove(), 45000);
   },
 };
 
