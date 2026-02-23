@@ -284,6 +284,46 @@ async function loadMappings() {
   }
 }
 
+async function syncLocalToSupabase() {
+  const btn = document.getElementById('btn-sync-mappings');
+  const originalText = btn.textContent;
+
+  try {
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+
+    // Ensure config is loaded
+    await AAM.Storage._ensureSupabaseConfig();
+
+    const mappings = await AAM.Storage.getMappings();
+    const bulkData = [];
+
+    for (const [siteKey, siteFields] of Object.entries(mappings)) {
+      for (const [selector, profileKey] of Object.entries(siteFields)) {
+        bulkData.push({ siteKey, selector, profileKey });
+      }
+    }
+
+    if (bulkData.length === 0) {
+      showStatus('No local mappings to sync.', 'info');
+      return;
+    }
+
+    const result = await AAM.Supabase.saveMappingsBulk(bulkData);
+    if (result) {
+      showStatus(`Successfully synced ${bulkData.length} mappings to the cloud!`, 'success');
+    } else {
+      throw new Error('Supabase request returned no result.');
+    }
+  } catch (err) {
+    showStatus('Sync failed: ' + err.message, 'error');
+    console.error('[AutoApplyMAX] Sync error:', err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
 // ── Application History ─────────────────────────────
 
 /** @type {Array} cached full list of applied jobs */
@@ -518,6 +558,12 @@ function initEventListeners() {
       }
     }
   });
+
+  // Sync mappings
+  const syncBtn = document.getElementById('btn-sync-mappings');
+  if (syncBtn) {
+    syncBtn.addEventListener('click', syncLocalToSupabase);
+  }
 
   // Status bar close
   document.getElementById('status-close').addEventListener('click', hideStatus);

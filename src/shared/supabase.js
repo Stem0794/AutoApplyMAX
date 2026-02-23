@@ -12,9 +12,10 @@ AAM.Supabase = {
      * @param {string} method - GET, POST, etc.
      * @param {object} body - optional body
      * @param {string} query - optional query string
+     * @param {object} extraHeaders - optional extra headers
      * @returns {Promise<any>}
      */
-    async _request(endpoint, method = 'GET', body = null, query = '') {
+    async _request(endpoint, method = 'GET', body = null, query = '', extraHeaders = {}) {
         const url = AAM.CONSTANTS.SUPABASE_URL;
         const key = AAM.CONSTANTS.SUPABASE_KEY;
 
@@ -27,7 +28,8 @@ AAM.Supabase = {
             'apikey': key,
             'Authorization': `Bearer ${key}`,
             'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
+            'Prefer': 'return=representation',
+            ...extraHeaders
         };
 
         const options = {
@@ -68,18 +70,29 @@ AAM.Supabase = {
      * @param {string} profileKey
      */
     async saveMapping(siteKey, selector, profileKey) {
-        // Note: We use upsert logic (on_conflict)
-        // Supabase REST treats POST with Prefer: resolution=merge-duplicates as upsert if there's a unique constraint
-        // or just use PATCH if we know the ID.
-        // Recommended table schema: id (uuid/serial), site_key (text), selector (text), profile_key (text), created_at
-        // Unique constraint on (site_key, selector)
-        const payload = {
-            site_key: siteKey,
-            selector: selector,
-            profile_key: profileKey
-        };
+        return this.saveMappingsBulk([{ siteKey, selector, profileKey }]);
+    },
 
-        return this._request(AAM.CONSTANTS.SUPABASE_TABLE, 'POST', payload);
+    /**
+     * Bulk upsert mappings to Supabase
+     * @param {Array<{siteKey: string, selector: string, profileKey: string}>} mappings
+     */
+    async saveMappingsBulk(mappings) {
+        if (!mappings || mappings.length === 0) return null;
+
+        const payload = mappings.map(m => ({
+            site_key: m.siteKey,
+            selector: m.selector,
+            profile_key: m.profileKey
+        }));
+
+        return this._request(
+            AAM.CONSTANTS.SUPABASE_TABLE,
+            'POST',
+            payload,
+            '?on_conflict=site_key,selector',
+            { 'Prefer': 'return=representation,resolution=merge-duplicates' }
+        );
     }
 };
 
