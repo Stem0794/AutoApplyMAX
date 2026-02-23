@@ -74,16 +74,47 @@ function buildFormFields() {
       if (field.type === 'textarea') {
         input = document.createElement('textarea');
         input.rows = 4;
+      } else if (field.type === 'file') {
+        input = document.createElement('input');
+        input.type = 'file';
+        input.id = 'field-' + field.key;
+        input.name = field.key;
+
+        const fileNameSpan = document.createElement('span');
+        fileNameSpan.id = `file-name-${field.key}`;
+        fileNameSpan.className = 'file-name-display';
+        div.appendChild(label); // Add label for file input
+        div.appendChild(input);
+        div.appendChild(fileNameSpan);
+
+        // Hidden input for storing filename
+        const hiddenFileNameInput = document.createElement('input');
+        hiddenFileNameInput.type = 'hidden';
+        hiddenFileNameInput.id = `field-${field.key}Name`;
+        hiddenFileNameInput.name = `${field.key}Name`;
+        div.appendChild(hiddenFileNameInput);
+
+        // Hidden textarea for storing Base64 content
+        const hiddenFileContentInput = document.createElement('textarea');
+        hiddenFileContentInput.style.display = 'none';
+        hiddenFileContentInput.id = `field-${field.key}Content`;
+        hiddenFileContentInput.name = `${field.key}Content`;
+        div.appendChild(hiddenFileContentInput);
+
+        // Don't add default placeholder for file input
+        input.placeholder = '';
       } else {
         input = document.createElement('input');
         input.type = field.type || 'text';
+        input.id = 'field-' + field.key;
+        input.name = field.key;
+        input.placeholder = field.label + '...';
       }
-      input.id = 'field-' + field.key;
-      input.name = field.key;
-      input.placeholder = field.label + '...';
 
-      div.appendChild(label);
-      div.appendChild(input);
+      // For 'file' type, input is already added. For others, add here.
+      if (field.type !== 'file') {
+        div.appendChild(input);
+      }
       container.appendChild(div);
     });
   }
@@ -96,9 +127,31 @@ async function loadProfile() {
     const profile = await AAM.Storage.getProfile();
     for (const [key, value] of Object.entries(profile)) {
       const input = document.querySelector(`[name="${key}"]`);
-      if (input && value) {
-        input.value = value;
+      // Also get the hidden fields for file name and content
+      const hiddenInput = document.querySelector(`[name="${key}"]`);
+      if (input) {
+        // For regular inputs, or the file input itself
+        if (value) {
+          input.value = value;
+        }
+      } else if (hiddenInput) {
+        // For hidden inputs (like resumeFileName, resumeFileContent)
+        if (value) {
+          hiddenInput.value = value;
+        }
       }
+
+      // Special handling for file inputs to display file name
+      // This is for the span that visually shows the filename, not the hidden input
+      const fieldDef = AAM.PROFILE_MAP[key.replace('Name', '').replace('Content', '')]; // Adjust key to get original fieldDef
+      if (fieldDef && fieldDef.type === 'file' && key.endsWith('Name')) {
+        const fileKey = key.replace('Name', ''); // e.g., resumeFileName -> resumeFile
+        const fileNameSpan = document.getElementById(`file-name-${fileKey}`);
+        if (fileNameSpan) {
+          fileNameSpan.textContent = value;
+        }
+      }
+
     }
   } catch (err) {
     showStatus('Failed to load profile: ' + err.message, 'error');
@@ -107,20 +160,43 @@ async function loadProfile() {
 
 async function saveProfile() {
   const profile = {};
-  AAM.PROFILE_FIELDS.forEach(field => {
-    const input = document.querySelector(`[name="${field.key}"]`);
-    if (input) {
-      const val = input.value.trim();
-      if (val) {
-        profile[field.key] = val;
+  const form = document.getElementById('profile-form'); // Get the form element once
+
+  for (const fieldDef of AAM.PROFILE_FIELDS) {
+    if (fieldDef.type === 'file') {
+      const fileInput = form.querySelector(`[name="${fieldDef.key}"]`); // The <input type="file">
+      const hiddenFileNameInput = form.querySelector(`[name="${fieldDef.key}Name"]`);
+      const hiddenFileContentInput = form.querySelector(`[name="${fieldDef.key}Content"]`);
+
+      if (fileInput && fileInput.files.length > 0) {
+        // New file selected
+        const file = fileInput.files[0];
+        profile[fieldDef.key + 'Name'] = file.name;
+        profile[fieldDef.key + 'Content'] = await fileToBase64(file);
+      } else {
+        // No new file selected, retain existing if any
+        if (hiddenFileNameInput && hiddenFileNameInput.value) {
+          profile[fieldDef.key + 'Name'] = hiddenFileNameInput.value;
+        }
+        if (hiddenFileContentInput && hiddenFileContentInput.value) {
+          profile[fieldDef.key + 'Content'] = hiddenFileContentInput.value;
+        }
+      }
+    } else {
+      const input = form.querySelector(`[name="${fieldDef.key}"]`);
+      if (input) {
+        const val = input.value.trim();
+        if (val) {
+          profile[fieldDef.key] = val;
+        }
       }
     }
-  });
+  }
 
   // Auto-generate fullName if not set
   if (!profile.fullName && profile.firstName && profile.lastName) {
     profile.fullName = profile.firstName + ' ' + profile.lastName;
-    const fullNameInput = document.querySelector('[name="fullName"]');
+    const fullNameInput = form.querySelector('[name="fullName"]'); // Use form to query
     if (fullNameInput) fullNameInput.value = profile.fullName;
   }
 
@@ -429,9 +505,33 @@ function initEventListeners() {
 
   // Status bar close
   document.getElementById('status-close').addEventListener('click', hideStatus);
+  // File input change listener for resume file to update displayed name
+  const resumeFileInput = document.getElementById('field-resumeFile');
+  if (resumeFileInput) {
+    resumeFileInput.addEventListener('change', (e) => {
+      const fileNameSpan = document.getElementById('file-name-resumeFile');
+      if (fileNameSpan) {
+        fileNameSpan.textContent = e.target.files.length > 0 ? e.target.files[0].name : 'No file selected';
+      }
+    });
+  }
 }
 
 // ── Utilities ───────────────────────────────────────
+
+/**
+ * Converts a File object to a Base64 string.
+ * @param {File} file
+ * @returns {Promise<String>} Base64 encoded string
+ */
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+  });
+}
 
 function showStatus(message, type) {
   const bar = document.getElementById('status-bar');

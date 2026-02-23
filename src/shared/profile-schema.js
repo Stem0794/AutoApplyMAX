@@ -120,12 +120,28 @@ AAM.PROFILE_FIELDS = [
     aliases: [/portfolio/i, /personal[\s_-]?(website|site)/i, /home[\s_-]?page/i, /^website$/i],
   },
   {
-    key: 'resumeUrl',
-    label: 'Resume / CV URL',
-    type: 'url',
+    key: 'resumeFile',
+    label: 'Resume / CV File',
+    type: 'file',
     group: 'professional',
-    keywords: ['resume', 'cv', 'resume url', 'cv url', 'resume link'],
-    aliases: [/resum[eé]/i, /curriculum[\s_-]?vitae/i, /\bcv\b/i],
+    keywords: ['resume', 'cv', 'resume file', 'cv file', 'upload resume', 'upload cv'],
+    aliases: [/resum[eé]/i, /curriculum[\s_-]?vitae/i, /\bcv\b/i, /upload[\s_-]?resume/i, /upload[\s_-]?cv/i],
+  },
+  {
+    key: 'resumeFileName',
+    label: 'Resume / CV Filename',
+    type: 'text', // This will be hidden and just store the name
+    group: 'professional',
+    keywords: [],
+    aliases: [],
+  },
+  {
+    key: 'resumeFileContent',
+    label: 'Resume / CV Content (Base64)',
+    type: 'textarea', // Hidden field to store Base64 encoded file
+    group: 'professional',
+    keywords: [],
+    aliases: [],
   },
   {
     key: 'currentTitle',
