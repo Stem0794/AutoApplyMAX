@@ -50,43 +50,63 @@ AAM.FieldDetector = {
   getFieldContext(field) {
     const parts = [];
 
-    // Direct attributes
+    // 1. Direct attributes (highly specific)
     if (field.name) parts.push(field.name);
     if (field.id) parts.push(field.id);
     if (field.placeholder) parts.push(field.placeholder);
-    if (field.getAttribute('aria-label')) parts.push(field.getAttribute('aria-label'));
-    if (field.getAttribute('aria-labelledby')) {
-      const labelEl = document.getElementById(field.getAttribute('aria-labelledby'));
+
+    const ariaLabel = field.getAttribute('aria-label');
+    if (ariaLabel) parts.push(ariaLabel);
+
+    const ariaLabelledBy = field.getAttribute('aria-labelledby');
+    if (ariaLabelledBy) {
+      const labelEl = document.getElementById(ariaLabelledBy);
       if (labelEl) parts.push(labelEl.textContent.trim());
     }
-    if (field.getAttribute('data-automation-id')) parts.push(field.getAttribute('data-automation-id'));
-    if (field.getAttribute('data-testid')) parts.push(field.getAttribute('data-testid'));
+
     if (field.title) parts.push(field.title);
     if (field.getAttribute('autocomplete')) parts.push(field.getAttribute('autocomplete'));
 
-    // Associated <label>
+    // 2. Associated <label> via 'for' attribute
     if (field.id) {
       const label = document.querySelector(`label[for="${CSS.escape(field.id)}"]`);
       if (label) parts.push(label.textContent.trim());
     }
 
-    // Parent label wrapping the field
+    // 3. Parent label wrapping the field
     const parentLabel = field.closest('label');
     if (parentLabel) parts.push(parentLabel.textContent.trim());
 
-    // Nearby preceding sibling or parent text
-    const parent = field.parentElement;
-    if (parent) {
-      // Look for a label-like element nearby
-      const siblings = parent.querySelectorAll('label, span, div, p, h3, h4, legend');
-      siblings.forEach(sib => {
-        if (sib !== field && sib.textContent.trim().length < 80) {
-          parts.push(sib.textContent.trim());
+    // 4. Closest preceding label-like element
+    // This is often more accurate than gathering all siblings
+    let prev = field.previousElementSibling;
+    while (prev) {
+      const tag = prev.tagName.toLowerCase();
+      if (['label', 'span', 'div', 'p', 'h3', 'h4'].includes(tag)) {
+        const text = prev.textContent.trim();
+        if (text && text.length < 50) {
+          parts.push(text);
+          break; // Only take the closest one
         }
-      });
+      }
+      prev = prev.previousElementSibling;
     }
 
-    // Also check the field's closest fieldset/legend
+    // 5. Parent's preceding sibling (common for table-like layouts)
+    const parent = field.parentElement;
+    if (parent && !parentLabel) {
+      let parentPrev = parent.previousElementSibling;
+      while (parentPrev) {
+        const text = parentPrev.textContent.trim();
+        if (text && text.length < 50) {
+          parts.push(text);
+          break;
+        }
+        parentPrev = parentPrev.previousElementSibling;
+      }
+    }
+
+    // 6. Closest fieldset legend
     const fieldset = field.closest('fieldset');
     if (fieldset) {
       const legend = fieldset.querySelector('legend');
@@ -108,15 +128,39 @@ AAM.FieldDetector = {
 
     // Keyword match
     for (const keyword of fieldDef.keywords) {
-      // For short keywords (<= 4 chars), use word boundary check to avoid partial matches (e.g., "name" in "Suriname")
-      if (keyword.length <= 4) {
-        const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      const kw = keyword.toLowerCase();
+      // For short keywords (<= 4 chars), use word boundary check to avoid partial matches
+      if (kw.length <= 4) {
+        const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
         if (regex.test(ctx)) {
-          score = Math.max(score, 0.65);
+          // Boost if it's an exact match in context
+          score = Math.max(score, ctx === kw ? 0.75 : 0.65);
         }
-      } else if (ctx.includes(keyword)) {
+      } else if (ctx.includes(kw)) {
         // Longer keywords are more specific, give more weight
-        score = Math.max(score, 0.6 + (keyword.length / 50));
+        let weight = 0.6 + (kw.length / 50);
+
+        // Multi-word keywords get a significant boost
+        if (kw.includes(' ')) weight += 0.15;
+
+        score = Math.max(score, weight);
+      }
+    }
+
+    // Special case for phone country code (e.g., +XX)
+    // If the field is a combobox/dropdown near "phone" or "mobile"
+    if (fieldDef.key === 'phoneCountryCode') {
+      const isDropdown = field.tagName === 'SELECT' ||
+        field.getAttribute('role') === 'combobox' ||
+        field.closest('lyte-dropdown');
+
+      if (isDropdown && (ctx.includes('mobile') || ctx.includes('phone'))) {
+        score = Math.max(score, 0.85);
+      }
+
+      // If the context contains a '+' as a standalone word or prefix
+      if (/\+/.test(ctx)) {
+        score = Math.max(score, 0.7);
       }
     }
 
