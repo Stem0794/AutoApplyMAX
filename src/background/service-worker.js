@@ -98,6 +98,7 @@ async function injectContentScripts(tabId) {
   const scripts = [
     'src/shared/constants.js',
     'src/shared/profile-schema.js',
+    'src/shared/supabase.js',
     'src/shared/storage.js',
     'src/content/adapters/adapter-base.js',
     'src/content/adapters/linkedin.js',
