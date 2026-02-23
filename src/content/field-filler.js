@@ -101,13 +101,14 @@ AAM.FieldFiller = {
    * @param {Array} detectedFields - output from FieldDetector.detectFields()
    * @param {object} profile - user profile data
    * @param {object} settings - extension settings
-   * @returns {{filled: number, skipped: number, unmatched: number, filledFields: Array}}
+   * @returns {Promise<{filled: number, skipped: number, unmatched: number, filledFields: Array}>}
    */
-  fillFields(detectedFields, profile, settings = {}) {
+  async fillFields(detectedFields, profile, settings = {}) {
     let filled = 0;
     let skipped = 0;
     let unmatched = 0;
     const filledFields = [];
+    const adapter = AAM.getAdapter();
 
     for (const detection of detectedFields) {
       const { element, profileKey, confidence, selector } = detection;
@@ -233,8 +234,17 @@ AAM.FieldFiller = {
         continue;
       }
 
-      // Fill the field
-      this.setNativeValue(element, value);
+      // Fill the field (check for adapter-specific override first)
+      let fieldFilled = false;
+      if (adapter && typeof adapter.fillField === 'function') {
+        fieldFilled = await adapter.fillField(element, profileKey, value);
+      }
+
+      if (!fieldFilled) {
+        this.setNativeValue(element, value);
+        fieldFilled = true;
+      }
+
       detection.status = 'filled';
       filled++;
 

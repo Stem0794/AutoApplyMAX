@@ -192,6 +192,14 @@ AAM.PROFILE_FIELDS = [
     aliases: [/education/i, /degree/i, /qualification/i, /school/i, /university/i],
   },
   {
+    key: 'preferredLocations',
+    label: 'Preferred Work Locations',
+    type: 'text',
+    group: 'professional',
+    keywords: ['preferred work locations', 'locations', 'work locations', 'preferred locations', 'where would you like to work'],
+    aliases: [/preferred[\s_-]?work[\s_-]?locations/i, /preferred[\s_-]?locations/i],
+  },
+  {
     key: 'skills',
     label: 'Skills (comma-separated)',
     type: 'textarea',

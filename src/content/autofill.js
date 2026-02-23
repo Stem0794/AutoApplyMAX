@@ -163,7 +163,7 @@ AAM.Autofill = {
       console.log(`[AutoApplyMAX] Detected ${detectedFields.length} form fields`);
 
       // 8. Fill the fields
-      const result = AAM.FieldFiller.fillFields(detectedFields, profile, settings);
+      const result = await AAM.FieldFiller.fillFields(detectedFields, profile, settings);
       console.log(
         `[AutoApplyMAX] Fill result: ${result.filled} filled, ` +
         `${result.skipped} skipped, ${result.unmatched} unmatched`
