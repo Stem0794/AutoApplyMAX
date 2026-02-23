@@ -117,12 +117,13 @@ AAM.FieldDetector = {
   },
 
   /**
-   * Score how well a context string matches a profile field definition.
-   * @param {string} context - the lowercase context string
-   * @param {object} fieldDef - a profile field definition from PROFILE_FIELDS
-   * @returns {number} - confidence score 0..1
-   */
-  scoreMatch(context, fieldDef) {
+  * Score how well a context string matches a profile field definition.
+  * @param {string} context - the lowercase context string
+  * @param {object} fieldDef - a profile field definition from PROFILE_FIELDS
+  * @param {HTMLElement} field - the actual DOM element
+  * @returns {number} - confidence score 0..1
+  */
+  scoreMatch(context, fieldDef, field) {
     let score = 0;
     const ctx = context.toLowerCase();
 
@@ -281,11 +282,16 @@ AAM.FieldDetector = {
       let bestScore = 0;
 
       for (const fieldDef of AAM.PROFILE_FIELDS) {
-        const score = this.scoreMatch(context, fieldDef);
+        const score = this.scoreMatch(context, fieldDef, field);
         if (score > bestScore) {
           bestScore = score;
           bestKey = fieldDef.key;
         }
+      }
+
+      if (bestScore >= AAM.CONSTANTS.CONFIDENCE_LOW) {
+        console.log(`[AutoApplyMAX] Match: ${bestKey} (${Math.round(bestScore * 100)}%) for selector: ${selector}`);
+        console.debug(`  Context: "${context}"`);
       }
 
       results.push({
