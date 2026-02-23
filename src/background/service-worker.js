@@ -106,6 +106,7 @@ async function injectContentScripts(tabId) {
     'src/content/adapters/lever.js',
     'src/content/adapters/workday.js',
     'src/content/adapters/hirehive.js',
+    'src/content/adapters/zoho.js',
     'src/content/field-detector.js',
     'src/content/field-filler.js',
     'src/content/learning-engine.js',

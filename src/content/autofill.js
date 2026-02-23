@@ -40,32 +40,41 @@ AAM.Autofill = {
    * Check if the current page can be prefilled and show a proactive overlay button.
    */
   async checkAndShowTrigger() {
+    console.log('[AutoApplyMAX] Checking if proactive trigger should show...');
     try {
       // Delay slightly to allow SPA content to load
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       // 1. Check if we have a profile
       const profile = await AAM.Storage.getProfile();
-      if (!profile || Object.keys(profile).length === 0) return;
+      if (!profile || Object.keys(profile).length === 0) {
+        console.log('[AutoApplyMAX] Trigger hidden: No profile saved.');
+        return;
+      }
 
       // 2. Get the settings
       const settings = await AAM.Storage.getSettings();
-      if (settings.showProactiveTrigger === false) return;
+      if (settings.showProactiveTrigger === false) {
+        console.log('[AutoApplyMAX] Trigger hidden: Disabled in settings.');
+        return;
+      }
 
       // 3. Get the adapter
       const adapter = AAM.getAdapter();
-      // Only show for specific ATS adapters, not the generic fallback
-      if (adapter.name === 'Generic') return;
+      const isGeneric = adapter.name === 'Generic';
 
       // 4. Look for fields (briefly)
-      // We don't run a full prepare() here, just a quick check
       const detectedFields = AAM.FieldDetector.detectFields();
+      console.log(`[AutoApplyMAX] Quick scan found ${detectedFields.length} fields. Adapter: ${adapter.name}`);
 
-      // If we find any form fields, show the trigger
-      if (detectedFields.length > 0) {
+      // If we find any form fields AND it's a known ATS
+      if (detectedFields.length > 0 && !isGeneric) {
+        console.log(`[AutoApplyMAX] Showing proactive trigger for ${adapter.name}`);
         AAM.Overlay.showTrigger(() => {
           this.run();
         });
+      } else {
+        console.log('[AutoApplyMAX] Trigger hidden: Site not recognized as a supported ATS or no fields found.');
       }
     } catch (err) {
       console.warn('[AutoApplyMAX] Trigger check failed:', err);
