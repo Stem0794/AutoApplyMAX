@@ -40,11 +40,10 @@ AAM.Autofill = {
    * Check if the current page can be prefilled and show a proactive overlay button.
    */
   async checkAndShowTrigger() {
+    if (this._triggerShown) return;
+
     console.log('[AutoApplyMAX] Checking if proactive trigger should show...');
     try {
-      // Delay slightly to allow SPA content to load
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
       // 1. Check if we have a profile
       const profile = await AAM.Storage.getProfile();
       if (!profile || Object.keys(profile).length === 0) {
@@ -70,15 +69,46 @@ AAM.Autofill = {
       // If we find any form fields AND it's a known ATS
       if (detectedFields.length > 0 && !isGeneric) {
         console.log(`[AutoApplyMAX] Showing proactive trigger for ${adapter.name}`);
+        this._triggerShown = true;
         AAM.Overlay.showTrigger(() => {
           this.run();
         });
+
+        if (this._triggerObserver) {
+          this._triggerObserver.disconnect();
+          this._triggerObserver = null;
+        }
+      } else if (!isGeneric && !this._triggerObserver) {
+        // Known ATS but no fields yet - watch for them
+        console.log('[AutoApplyMAX] No fields found on known ATS, watching for DOM changes...');
+        this._startTriggerObserver();
       } else {
-        console.log('[AutoApplyMAX] Trigger hidden: Site not recognized as a supported ATS or no fields found.');
+        console.log('[AutoApplyMAX] Trigger hidden: Site not recognized or no fields found.');
       }
     } catch (err) {
       console.warn('[AutoApplyMAX] Trigger check failed:', err);
     }
+  },
+
+  /**
+   * Watch the DOM for changes to detect dynamically loaded forms
+   */
+  _startTriggerObserver() {
+    if (this._triggerObserver) return;
+
+    let throttleTimer = null;
+    this._triggerObserver = new MutationObserver(() => {
+      if (throttleTimer) return;
+      throttleTimer = setTimeout(() => {
+        this.checkAndShowTrigger();
+        throttleTimer = null;
+      }, 2000);
+    });
+
+    this._triggerObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
   },
 
   /**
