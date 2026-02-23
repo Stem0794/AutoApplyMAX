@@ -199,6 +199,14 @@ AAM.PROFILE_FIELDS = [
     keywords: ['skills', 'key skills', 'technical skills', 'competencies'],
     aliases: [/skills/i, /competenc/i],
   },
+  {
+    key: 'englishLevel',
+    label: 'English Level',
+    type: 'text',
+    group: 'professional',
+    keywords: ['english', 'english level', 'english proficiency', 'english language', 'level of english'],
+    aliases: [/english[\s_-]?(level|proficiency|language)?/i],
+  },
 
   // ── Additional ────────────────────────────────────
   {
