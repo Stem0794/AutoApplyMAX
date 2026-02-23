@@ -16,8 +16,13 @@ AAM.FieldFiller = {
   setNativeValue(el, value) {
     if (!value && value !== '') return;
 
-    // Handle contenteditable / role=textbox
-    if (el.getAttribute('contenteditable') === 'true' || el.getAttribute('role') === 'textbox') {
+    const tagName = el.tagName.toUpperCase();
+    const role = el.getAttribute('role');
+    const isContentEditable = el.getAttribute('contenteditable') === 'true';
+
+    // Handle contenteditable / role-based textboxes that are not native inputs
+    if ((isContentEditable || role === 'textbox' || role === 'combobox') && 
+        tagName !== 'INPUT' && tagName !== 'TEXTAREA') {
       el.focus();
       el.textContent = value;
       el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -26,25 +31,33 @@ AAM.FieldFiller = {
     }
 
     // Handle <select>
-    if (el.tagName === 'SELECT') {
+    if (tagName === 'SELECT') {
       this.setSelectValue(el, value);
       return;
     }
 
     // Handle standard input/textarea
-    el.focus();
+    try {
+      el.focus();
+    } catch (e) {
+      console.warn('[AutoApplyMAX] Could not focus element:', e);
+    }
 
     // Use the native setter to bypass React's synthetic event system
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype, 'value'
-    )?.set;
-    const nativeTextareaValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLTextAreaElement.prototype, 'value'
-    )?.set;
+    let setter = null;
+    if (el instanceof HTMLInputElement) {
+      setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    } else if (el instanceof HTMLTextAreaElement) {
+      setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+    }
 
-    const setter = el.tagName === 'TEXTAREA' ? nativeTextareaValueSetter : nativeInputValueSetter;
     if (setter) {
-      setter.call(el, value);
+      try {
+        setter.call(el, value);
+      } catch (e) {
+        console.error('[AutoApplyMAX] Native setter failed:', e);
+        el.value = value;
+      }
     } else {
       el.value = value;
     }

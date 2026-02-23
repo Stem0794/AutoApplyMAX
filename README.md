@@ -23,6 +23,7 @@ AutoApplyMAX currently provides optimized support for:
 - [x] **Lever** (`jobs.lever.co`)
 - [x] **Workday** (`*.myworkdayjobs.com`)
 - [x] **HireHive** (`*.hirehive.com`)
+- [x] **Zoho Recruit** (`*.zohorecruit.eu`, `*.zohorecruit.com`)
 - [ ] *More platforms coming soon!*
 
 ---

@@ -17,6 +17,8 @@
     "https://*.myworkdayjobs.com/*",
     "https://*.workday.com/*",
     "https://*.hirehive.com/*",
+    "https://*.zohorecruit.eu/*",
+    "https://*.zohorecruit.com/*",
     "https://*/*"
   ],
   "background": {
@@ -41,7 +43,9 @@
         "https://jobs.lever.co/*",
         "https://*.myworkdayjobs.com/*",
         "https://*.workday.com/*",
-        "https://*.hirehive.com/*"
+        "https://*.hirehive.com/*",
+        "https://*.zohorecruit.eu/*",
+        "https://*.zohorecruit.com/*"
       ],
       "js": [
         "src/shared/constants.js",
