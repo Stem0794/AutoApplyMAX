@@ -69,6 +69,7 @@ function buildFormFields() {
       const label = document.createElement('label');
       label.setAttribute('for', 'field-' + field.key);
       label.textContent = field.label;
+      div.appendChild(label); // Always add label first
 
       let input;
       if (field.type === 'textarea') {
@@ -83,7 +84,6 @@ function buildFormFields() {
         const fileNameSpan = document.createElement('span');
         fileNameSpan.id = `file-name-${field.key}`;
         fileNameSpan.className = 'file-name-display';
-        div.appendChild(label); // Add label for file input
         div.appendChild(input);
         div.appendChild(fileNameSpan);
 
