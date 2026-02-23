@@ -32,6 +32,8 @@ AAM.CONSTANTS = {
     LEVER: ['jobs.lever.co'],
     WORKDAY: ['myworkdayjobs.com', 'workday.com'],
     HIREHIVE: ['hirehive.com'],
+    ZOHO: ['zohorecruit.com', 'zohorecruit.eu'],
+    REVOLUT: ['revolut.com'],
   },
 
   // Supabase Configuration (Sync shared mappings)
