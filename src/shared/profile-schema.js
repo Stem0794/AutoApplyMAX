@@ -42,8 +42,8 @@ AAM.PROFILE_FIELDS = [
     label: 'Full Name',
     type: 'text',
     group: 'personal',
-    keywords: ['full name', 'full_name', 'fullname', 'name', 'your name', 'candidate name'],
-    aliases: [/full[\s_-]?name/i, /^name$/i, /your[\s_-]?name/i, /candidate[\s_-]?name/i],
+    keywords: ['full name', 'full_name', 'fullname', 'your name', 'candidate name', 'complete name'],
+    aliases: [/full[\s_-]?name/i, /\bname\b/i, /your[\s_-]?name/i, /candidate[\s_-]?name/i],
   },
   {
     key: 'email',
@@ -58,8 +58,8 @@ AAM.PROFILE_FIELDS = [
     label: 'Phone Country Code (e.g., +33)',
     type: 'text',
     group: 'personal',
-    keywords: ['country code', 'area code', 'dialing code', 'phone country', 'phone code', '+'],
-    aliases: [/country[\s_-]?code/i, /dialling[\s_-]?code/i, /phone[\s_-]?code/i],
+    keywords: ['country code', 'area code', 'dialing code', 'phone country', 'phone code', '+', 'mobile code', 'prefix'],
+    aliases: [/country[\s_-]?code/i, /dialling[\s_-]?code/i, /phone[\s_-]?code/i, /prefix/i],
   },
   {
     key: 'phone',

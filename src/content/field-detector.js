@@ -106,9 +106,15 @@ AAM.FieldDetector = {
     let score = 0;
     const ctx = context.toLowerCase();
 
-    // Exact keyword match (highest weight)
+    // Keyword match
     for (const keyword of fieldDef.keywords) {
-      if (ctx.includes(keyword)) {
+      // For short keywords (<= 4 chars), use word boundary check to avoid partial matches (e.g., "name" in "Suriname")
+      if (keyword.length <= 4) {
+        const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (regex.test(ctx)) {
+          score = Math.max(score, 0.65);
+        }
+      } else if (ctx.includes(keyword)) {
         // Longer keywords are more specific, give more weight
         score = Math.max(score, 0.6 + (keyword.length / 50));
       }
