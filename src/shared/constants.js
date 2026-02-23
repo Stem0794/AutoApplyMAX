@@ -1,7 +1,7 @@
 /**
  * AutoApplyMAX — shared constants
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 AAM.CONSTANTS = {
   // Storage keys

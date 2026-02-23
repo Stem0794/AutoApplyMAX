@@ -4,7 +4,7 @@
  * Coordinates field detection, filling, the learning engine,
  * and the overlay UI. Triggered via message from the popup/background.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 AAM.Autofill = {
   /** @type {boolean} */

@@ -5,7 +5,7 @@
  * it attempts to match the manually-entered values to profile field keys
  * and saves the CSS selector → profile key mapping for future use.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 AAM.LearningEngine = {
   /** @type {Map<HTMLElement, {selector: string, value: string, timestamp: number}>} */

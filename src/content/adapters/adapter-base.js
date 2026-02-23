@@ -4,7 +4,7 @@
  * Provides the interface and shared utilities for ATS-specific adapters.
  * Each adapter can override methods to handle ATS-specific DOM quirks.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 AAM.AdapterBase = {
   /** Human-readable name */

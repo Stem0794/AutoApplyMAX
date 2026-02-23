@@ -5,7 +5,7 @@
  * then fills each form field with the corresponding profile value.
  * Dispatches native-like events so frameworks (React, Angular, etc.) pick up changes.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 AAM.FieldFiller = {
   /**

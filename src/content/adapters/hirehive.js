@@ -4,7 +4,7 @@
  * Handles HireHive application forms.
  * HireHive uses relatively standard form elements.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 const HireHiveAdapter = Object.assign({}, AAM.AdapterBase, {
   name: 'HireHive',

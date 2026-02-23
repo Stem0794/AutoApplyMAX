@@ -9,7 +9,7 @@
  * Uses ATS-specific selectors with cascading fallbacks so it works
  * across LinkedIn, Greenhouse, Lever, Workday, HireHive, and unknown sites.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 AAM.ApplicationLogger = {
   /** @type {boolean} */

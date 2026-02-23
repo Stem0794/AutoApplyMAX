@@ -1,7 +1,7 @@
 /**
  * AutoApplyMAX — chrome.storage.local wrapper
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 AAM.Storage = {
   /**

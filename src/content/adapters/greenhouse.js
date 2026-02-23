@@ -5,7 +5,7 @@
  * Greenhouse uses a relatively standard form structure with
  * well-labeled fields.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 const GreenhouseAdapter = Object.assign({}, AAM.AdapterBase, {
   name: 'Greenhouse',

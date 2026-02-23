@@ -4,7 +4,7 @@
  * Scans the DOM for form fields and uses fuzzy matching to determine
  * which profile field each form element corresponds to.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 AAM.FieldDetector = {
   /**

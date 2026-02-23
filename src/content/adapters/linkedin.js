@@ -4,7 +4,7 @@
  * Handles LinkedIn Easy Apply and standard application forms.
  * LinkedIn uses a multi-step modal for Easy Apply.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 const LinkedInAdapter = Object.assign({}, AAM.AdapterBase, {
   name: 'LinkedIn',

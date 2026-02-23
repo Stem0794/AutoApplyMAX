@@ -9,7 +9,7 @@
  *   aliases    – additional regex patterns for fuzzy matching
  *   group      – UI grouping on the options page
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 AAM.PROFILE_FIELDS = [
   // ── Personal ──────────────────────────────────────

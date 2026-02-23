@@ -4,7 +4,7 @@
  * Injects a non-intrusive floating overlay to notify the user
  * that autofill is complete and they should review before submitting.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 AAM.Overlay = {
   /** @type {HTMLElement|null} */

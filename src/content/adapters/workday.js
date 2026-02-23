@@ -5,7 +5,7 @@
  * Workday is notoriously complex with dynamic rendering,
  * shadow DOM-like structures, and data-automation-id attributes.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 const WorkdayAdapter = Object.assign({}, AAM.AdapterBase, {
   name: 'Workday',

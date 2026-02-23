@@ -4,7 +4,7 @@
  * Handles Lever job application forms.
  * Lever forms typically have a clean structure with standard input fields.
  */
-const AAM = window.AAM || {};
+var AAM = window.AAM || {};
 
 const LeverAdapter = Object.assign({}, AAM.AdapterBase, {
   name: 'Lever',
