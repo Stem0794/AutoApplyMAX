@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoApplyMAX — Profile Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="logo">
+          <div class="logo-icon">A</div>
+          <div>
+            <h1>AutoApplyMAX</h1>
+            <p class="subtitle">Your master profile for job applications</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="btn-export" class="btn btn-outline" title="Export profile as JSON">Export</button>
+          <button id="btn-import" class="btn btn-outline" title="Import profile from JSON">Import</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Status bar -->
+    <div id="status-bar" class="status-bar hidden">
+      <span id="status-text"></span>
+      <button id="status-close" class="status-close">&times;</button>
+    </div>
+
+    <!-- Tab navigation -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="personal">Personal Info</button>
+      <button class="tab" data-tab="professional">Professional</button>
+      <button class="tab" data-tab="additional">Additional</button>
+      <button class="tab" data-tab="settings">Settings</button>
+      <button class="tab" data-tab="mappings">Learned Mappings</button>
+    </nav>
+
+    <!-- Form -->
+    <form id="profile-form" autocomplete="off">
+      <!-- Personal Info Tab -->
+      <div class="tab-panel active" id="panel-personal">
+        <div class="panel-header">
+          <h2>Personal Information</h2>
+          <p>Basic contact details used across all job applications.</p>
+        </div>
+        <div class="form-grid" id="fields-personal"></div>
+      </div>
+
+      <!-- Professional Tab -->
+      <div class="tab-panel" id="panel-professional">
+        <div class="panel-header">
+          <h2>Professional Details</h2>
+          <p>Your work experience, links, and qualifications.</p>
+        </div>
+        <div class="form-grid" id="fields-professional"></div>
+      </div>
+
+      <!-- Additional Tab -->
+      <div class="tab-panel" id="panel-additional">
+        <div class="panel-header">
+          <h2>Additional Information</h2>
+          <p>Optional fields for EEO questions, salary, availability, etc.</p>
+        </div>
+        <div class="form-grid" id="fields-additional"></div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div class="tab-panel" id="panel-settings">
+        <div class="panel-header">
+          <h2>Extension Settings</h2>
+          <p>Configure how AutoApplyMAX behaves.</p>
+        </div>
+        <div class="settings-list">
+          <label class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Highlight autofilled fields</span>
+              <span class="setting-desc">Show a green background on fields that were filled automatically.</span>
+            </div>
+            <input type="checkbox" id="setting-highlight" checked>
+            <span class="toggle"></span>
+          </label>
+          <label class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Show result overlay</span>
+              <span class="setting-desc">Display a floating notification after autofill completes.</span>
+            </div>
+            <input type="checkbox" id="setting-overlay" checked>
+            <span class="toggle"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Learned Mappings Tab -->
+      <div class="tab-panel" id="panel-mappings">
+        <div class="panel-header">
+          <h2>Learned Field Mappings</h2>
+          <p>These are the form field selectors the extension has learned from your manual inputs.</p>
+        </div>
+        <div id="mappings-content">
+          <p class="empty-state">Loading...</p>
+        </div>
+        <div class="mappings-actions">
+          <button type="button" id="btn-clear-mappings" class="btn btn-danger">Clear All Mappings</button>
+        </div>
+      </div>
+
+      <!-- Save button (for profile tabs) -->
+      <div class="form-actions" id="form-actions">
+        <button type="submit" class="btn btn-primary" id="btn-save">Save Profile</button>
+        <span class="save-hint">Profile is stored locally in your browser.</span>
+      </div>
+    </form>
+
+    <!-- Hidden file input for import -->
+    <input type="file" id="import-file" accept=".json" style="display:none">
+  </div>
+
+  <script src="../shared/constants.js"></script>
+  <script src="../shared/profile-schema.js"></script>
+  <script src="../shared/storage.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

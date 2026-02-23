@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoApplyMAX</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <!-- Header -->
+    <div class="popup-header">
+      <div class="popup-logo">
+        <div class="popup-icon">A</div>
+        <span class="popup-title">AutoApplyMAX</span>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="popup-body">
+      <!-- Profile status -->
+      <div id="profile-status" class="profile-status">
+        <div class="profile-status-icon" id="profile-icon">?</div>
+        <div class="profile-status-text">
+          <span id="profile-name">Loading...</span>
+          <span id="profile-email" class="profile-email"></span>
+        </div>
+      </div>
+
+      <!-- Autofill Button -->
+      <button id="btn-autofill" class="btn-autofill" disabled>
+        <span class="btn-autofill-text" id="btn-text">Autofill This Page</span>
+        <span class="btn-autofill-loading hidden" id="btn-loading">
+          <span class="spinner"></span>
+          Filling...
+        </span>
+      </button>
+
+      <!-- Result -->
+      <div id="result" class="result hidden">
+        <div class="result-stats">
+          <div class="result-stat">
+            <span class="result-stat-number" id="stat-filled">0</span>
+            <span class="result-stat-label">Filled</span>
+          </div>
+          <div class="result-stat">
+            <span class="result-stat-number" id="stat-skipped">0</span>
+            <span class="result-stat-label">Skipped</span>
+          </div>
+          <div class="result-stat">
+            <span class="result-stat-number" id="stat-unmatched">0</span>
+            <span class="result-stat-label">Unknown</span>
+          </div>
+        </div>
+        <div class="result-adapter" id="result-adapter"></div>
+      </div>
+
+      <!-- Error -->
+      <div id="error" class="error hidden">
+        <span id="error-text"></span>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="popup-footer">
+      <a href="#" id="link-options" class="footer-link">Edit Profile</a>
+      <span class="footer-sep">|</span>
+      <a href="#" id="link-mappings" class="footer-link">Mappings</a>
+    </div>
+  </div>
+
+  <script src="../shared/constants.js"></script>
+  <script src="../shared/profile-schema.js"></script>
+  <script src="../shared/storage.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
