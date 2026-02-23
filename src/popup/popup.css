@@ -233,6 +233,29 @@ body {
   font-size: 12px;
 }
 
+/* Application Tracker */
+.app-tracker {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-tracker-count {
+  font-size: 20px;
+  font-weight: 700;
+  color: #4338ca;
+}
+
+.app-tracker-text {
+  font-size: 12px;
+  color: #6366f1;
+}
+
 /* ── Footer ── */
 
 .popup-footer {

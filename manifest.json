@@ -57,7 +57,8 @@
         "src/content/field-filler.js",
         "src/content/learning-engine.js",
         "src/content/overlay.js",
-        "src/content/autofill.js"
+        "src/content/autofill.js",
+        "src/content/application-logger.js"
       ],
       "css": [],
       "run_at": "document_idle"

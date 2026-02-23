@@ -37,6 +37,7 @@
       <button class="tab" data-tab="professional">Professional</button>
       <button class="tab" data-tab="additional">Additional</button>
       <button class="tab" data-tab="settings">Settings</button>
+      <button class="tab" data-tab="history">Application History</button>
       <button class="tab" data-tab="mappings">Learned Mappings</button>
     </nav>
 
@@ -92,6 +93,31 @@
             <input type="checkbox" id="setting-overlay" checked>
             <span class="toggle"></span>
           </label>
+        </div>
+      </div>
+
+      <!-- Application History Tab -->
+      <div class="tab-panel" id="panel-history">
+        <div class="panel-header">
+          <div class="panel-header-row">
+            <div>
+              <h2>Application History</h2>
+              <p>Every job application you submit is automatically logged here.</p>
+            </div>
+            <div class="panel-header-actions">
+              <span id="history-count" class="history-count"></span>
+              <button type="button" id="btn-export-csv" class="btn btn-outline">Export CSV</button>
+            </div>
+          </div>
+        </div>
+        <div id="history-filters" class="history-filters">
+          <input type="text" id="history-search" class="history-search" placeholder="Search by title, company, or ATS...">
+        </div>
+        <div id="history-content">
+          <p class="empty-state">Loading...</p>
+        </div>
+        <div class="mappings-actions">
+          <button type="button" id="btn-clear-history" class="btn btn-danger">Clear All History</button>
         </div>
       </div>
 

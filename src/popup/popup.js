@@ -6,6 +6,7 @@
  */
 document.addEventListener('DOMContentLoaded', () => {
   loadProfileStatus();
+  loadApplicationCount();
   initEventListeners();
 });
 
@@ -41,6 +42,24 @@ async function loadProfileStatus() {
     emailEl.textContent = err.message;
     iconEl.textContent = '!';
     iconEl.classList.add('empty');
+  }
+}
+
+/**
+ * Load and display the total application count.
+ */
+async function loadApplicationCount() {
+  try {
+    const jobs = await AAM.Storage.getAppliedJobs();
+    const tracker = document.getElementById('app-tracker');
+    const countEl = document.getElementById('app-count');
+
+    if (jobs.length > 0) {
+      countEl.textContent = jobs.length;
+      tracker.classList.remove('hidden');
+    }
+  } catch (err) {
+    // Non-critical — silently fail
   }
 }
 
@@ -117,6 +136,12 @@ function initEventListeners() {
 
   // Edit Profile link
   document.getElementById('link-options').addEventListener('click', e => {
+    e.preventDefault();
+    chrome.runtime.openOptionsPage();
+  });
+
+  // History link — open options page
+  document.getElementById('link-history').addEventListener('click', e => {
     e.preventDefault();
     chrome.runtime.openOptionsPage();
   });

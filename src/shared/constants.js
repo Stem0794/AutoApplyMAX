@@ -8,6 +8,7 @@ AAM.CONSTANTS = {
   STORAGE_PROFILE: 'aam_user_profile',
   STORAGE_MAPPINGS: 'aam_field_mappings',
   STORAGE_SETTINGS: 'aam_settings',
+  STORAGE_APPLIED_JOBS: 'aam_applied_jobs',
 
   // Highlight colour for autofilled fields
   HIGHLIGHT_COLOR: '#d4edda',
@@ -41,6 +42,8 @@ AAM.CONSTANTS = {
     SAVE_MAPPING: 'aam:save_mapping',
     GET_MAPPINGS: 'aam:get_mappings',
     PROFILE_UPDATED: 'aam:profile_updated',
+    LOG_APPLICATION: 'aam:log_application',
+    GET_APPLIED_JOBS: 'aam:get_applied_jobs',
   },
 };
 

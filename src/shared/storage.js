@@ -113,6 +113,60 @@ AAM.Storage = {
   async saveSettings(settings) {
     return this.set({ [AAM.CONSTANTS.STORAGE_SETTINGS]: settings });
   },
+
+  // ── Applied Jobs Log ────────────────────────────────
+
+  /**
+   * Get all logged applied jobs
+   * @returns {Promise<Array<{jobTitle: string, company: string, url: string, timestamp: string, ats: string}>>}
+   */
+  async getAppliedJobs() {
+    const result = await this.get(AAM.CONSTANTS.STORAGE_APPLIED_JOBS);
+    return result[AAM.CONSTANTS.STORAGE_APPLIED_JOBS] || [];
+  },
+
+  /**
+   * Append a new applied-job entry.
+   * Deduplicates by URL — if the same URL was logged within the last 60 seconds, skip.
+   * @param {{jobTitle: string, company: string, url: string, timestamp: string, ats: string}} entry
+   * @returns {Promise<boolean>} true if saved, false if duplicate
+   */
+  async logAppliedJob(entry) {
+    const jobs = await this.getAppliedJobs();
+
+    // Deduplicate — same URL within 60 s
+    const dominated = jobs.some(j => {
+      if (j.url !== entry.url) return false;
+      const diff = Math.abs(new Date(entry.timestamp) - new Date(j.timestamp));
+      return diff < 60000;
+    });
+    if (dominated) return false;
+
+    jobs.unshift(entry); // newest first
+    await this.set({ [AAM.CONSTANTS.STORAGE_APPLIED_JOBS]: jobs });
+    return true;
+  },
+
+  /**
+   * Clear all applied-job history
+   * @returns {Promise<void>}
+   */
+  async clearAppliedJobs() {
+    return this.set({ [AAM.CONSTANTS.STORAGE_APPLIED_JOBS]: [] });
+  },
+
+  /**
+   * Delete a single applied-job entry by index
+   * @param {number} index
+   * @returns {Promise<void>}
+   */
+  async deleteAppliedJob(index) {
+    const jobs = await this.getAppliedJobs();
+    if (index >= 0 && index < jobs.length) {
+      jobs.splice(index, 1);
+      await this.set({ [AAM.CONSTANTS.STORAGE_APPLIED_JOBS]: jobs });
+    }
+  },
 };
 
 window.AAM = AAM;

@@ -110,6 +110,7 @@ async function injectContentScripts(tabId) {
     'src/content/learning-engine.js',
     'src/content/overlay.js',
     'src/content/autofill.js',
+    'src/content/application-logger.js',
   ];
 
   await chrome.scripting.executeScript({

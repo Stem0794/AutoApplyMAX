@@ -437,6 +437,163 @@ body {
   color: var(--text-muted);
 }
 
+/* ── Application History ── */
+
+.panel-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.history-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.history-filters {
+  margin-bottom: 16px;
+}
+
+.history-search {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.history-search:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.history-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background: var(--bg);
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.history-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.history-table tbody tr:hover {
+  background: #f8fafd;
+}
+
+.history-table .col-date {
+  width: 140px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.history-table .col-company {
+  width: 180px;
+  font-weight: 500;
+}
+
+.history-table .col-title {
+  min-width: 180px;
+}
+
+.history-table .col-link {
+  width: 50px;
+  text-align: center;
+}
+
+.history-table .col-ats {
+  width: 100px;
+  text-align: center;
+}
+
+.history-table .col-actions {
+  width: 40px;
+  text-align: center;
+}
+
+.history-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.history-link:hover {
+  text-decoration: underline;
+}
+
+.ats-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.btn-delete-row {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.btn-delete-row:hover {
+  color: var(--danger);
+  background: #fef2f2;
+}
+
+.history-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+
+.history-empty-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  opacity: 0.4;
+}
+
+.history-empty p {
+  font-size: 13px;
+  font-style: italic;
+}
+
 /* ── Responsive ── */
 
 @media (max-width: 600px) {
