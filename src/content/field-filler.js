@@ -106,11 +106,72 @@ AAM.FieldFiller = {
       }
 
       // Get the profile value
+      // Special handling for resume file
+      if (profileKey === 'resumeFile') {
+        const fileName = profile.resumeFileName;
+        const fileContent = profile.resumeFileContent;
+
+        if (fileName && fileContent) {
+          // Programmatic file upload is generally not possible for security reasons.
+          // Instead, we will notify the user and provide a download link.
+          const messageDiv = document.createElement('div');
+          messageDiv.className = 'aam-file-upload-message';
+          messageDiv.style.cssText = `
+            margin-top: 5px;
+            padding: 8px;
+            border: 1px solid #ffcc00;
+            background-color: #fffacd;
+            color: #333;
+            font-size: 12px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          `;
+          messageDiv.innerHTML = `
+            <span>&#9888; Please manually upload your CV: <strong>${escapeHtml(fileName)}</strong></span>
+            <button class="aam-download-btn" data-filename="${escapeHtml(fileName)}" data-filecontent="${escapeHtml(fileContent)}"
+                    style="
+                      background-color: #4CAF50;
+                      color: white;
+                      padding: 5px 10px;
+                      border: none;
+                      border-radius: 3px;
+                      cursor: pointer;
+                      font-size: 11px;
+                      margin-left: 10px;
+                    ">Download</button>
+          `;
+
+          element.parentNode.insertBefore(messageDiv, element.nextSibling);
+
+          messageDiv.querySelector('.aam-download-btn').addEventListener('click', (event) => {
+            const btn = event.target;
+            const dlFileName = btn.dataset.filename;
+            const dlFileContent = btn.dataset.filecontent;
+            if (dlFileName && dlFileContent) {
+              const link = document.createElement('a');
+              link.href = dlFileContent; // Base64 content directly as href
+              link.download = dlFileName;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }
+          });
+          skipped++; // Mark as skipped for autofill, as user interaction is needed
+          continue; // Skip further processing for this field
+        } else {
+          skipped++;
+          continue;
+        }
+      }
+
       const value = profile[profileKey];
       if (!value) {
         skipped++;
         continue;
       }
+
 
       // Skip if already filled with the same value
       const currentValue = element.value || element.textContent || '';
@@ -143,5 +204,11 @@ AAM.FieldFiller = {
     return { filled, skipped, unmatched, filledFields };
   },
 };
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
 
 window.AAM = AAM;

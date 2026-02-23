@@ -19,6 +19,7 @@ AAM.FieldDetector = {
       'input[type="url"]',
       'input[type="number"]',
       'input[type="search"]',
+      'input[type="file"]', // Added to detect file upload inputs
       'input:not([type])',
       'textarea',
       'select',
