@@ -204,8 +204,8 @@ AAM.PROFILE_FIELDS = [
     label: 'English Level',
     type: 'text',
     group: 'professional',
-    keywords: ['english', 'english level', 'english proficiency', 'english language', 'level of english'],
-    aliases: [/english[\s_-]?(level|proficiency|language)?/i],
+    keywords: ['english', 'english level', 'english proficiency', 'english language', 'level of english', 'what is your level of english', 'spoken english', 'written english', 'fluency', 'fluent', 'proficient'],
+    aliases: [/english[\s_-]?(level|proficiency|language|fluency)?/i, /level[\s_-]?of[\s_-]?english/i],
   },
 
   // ── Additional ────────────────────────────────────

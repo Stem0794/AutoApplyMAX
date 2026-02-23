@@ -114,6 +114,7 @@ AAM.FieldFiller = {
 
       // Skip unmatched fields
       if (!profileKey || confidence < AAM.CONSTANTS.CONFIDENCE_LOW) {
+        detection.status = 'unmatched';
         unmatched++;
         continue;
       }
@@ -125,6 +126,7 @@ AAM.FieldFiller = {
         const fileContent = profile.resumeFileContent;
 
         if (fileName && fileContent) {
+          detection.status = 'manual_file';
           // Programmatic file upload is generally not possible for security reasons.
           // We provide a premium "Manual Upload Helper"
           const helperId = `aam-helper-${profileKey}`;
@@ -206,8 +208,10 @@ AAM.FieldFiller = {
           });
 
           skipped++;
+          detection.status = 'skipped_file';
           continue;
         } else {
+          detection.status = 'skipped_file_no_content';
           skipped++;
           continue;
         }
@@ -215,6 +219,7 @@ AAM.FieldFiller = {
 
       const value = profile[profileKey];
       if (!value) {
+        detection.status = 'missing_value';
         skipped++;
         continue;
       }
@@ -223,12 +228,14 @@ AAM.FieldFiller = {
       // Skip if already filled with the same value
       const currentValue = element.value || element.textContent || '';
       if (currentValue.trim() === value.trim()) {
+        detection.status = 'skipped_already_filled';
         skipped++;
         continue;
       }
 
       // Fill the field
       this.setNativeValue(element, value);
+      detection.status = 'filled';
       filled++;
 
       // Highlight the filled field

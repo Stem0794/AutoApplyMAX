@@ -19,8 +19,8 @@ AAM.Overlay = {
   show(stats, detectedFields = [], siteKey = '') {
     this.remove(); // Remove any existing overlay
 
-    const unmatchedFields = (detectedFields || []).filter(
-      f => f.source === 'unmatched' || f.confidence < AAM.CONSTANTS.CONFIDENCE_LOW
+    const reviewFields = (detectedFields || []).filter(
+      f => f.source === 'unmatched' || f.confidence < AAM.CONSTANTS.CONFIDENCE_LOW || f.status === 'missing_value'
     );
 
     const container = document.createElement('div');
@@ -112,7 +112,21 @@ AAM.Overlay = {
         .aam-stat-number { font-size: 18px; font-weight: 700; color: #333; }
         .aam-stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
         .aam-stat-filled .aam-stat-number { color: #1a7f37; }
-        .aam-stat-unmatched .aam-stat-number { color: #d4a017; }
+        .aam-stat-review .aam-stat-number { color: #f59e0b; }
+
+        .aam-missing-badge {
+          font-size: 9px;
+          background: #fee2e2;
+          color: #b91c1c;
+          padding: 1px 4px;
+          border-radius: 4px;
+          margin-left: 6px;
+          text-transform: uppercase;
+          font-weight: 700;
+          display: inline-block;
+          vertical-align: middle;
+          border: 1px solid #fca5a5;
+        }
 
         #aam-overlay-message { font-size: 13px; color: #555; text-align: center; margin-bottom: 10px; }
         #aam-overlay-message strong { color: #333; }
@@ -134,23 +148,33 @@ AAM.Overlay = {
         }
 
         .aam-train-item {
-          margin-bottom: 10px; padding: 6px;
+          margin-bottom: 12px; padding: 10px;
           border-bottom: 1px solid #eee;
-          border-radius: 4px;
-          transition: background 0.2s;
+          background: #ffffff;
+          border-radius: 8px;
+          transition: transform 0.2s, box-shadow 0.2s;
         }
-        .aam-train-item:hover { background: #eef2ff; }
-        .aam-train-item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        .aam-train-item:hover { transform: scale(1.02); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .aam-train-item:last-child { border-bottom: none; }
         
+        .aam-train-label-row {
+          display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;
+        }
+
         .aam-train-label {
-          display: block; font-size: 11px; color: #444; font-weight: 600;
-          margin-bottom: 4px; white-space: nowrap; overflow: hidden;
-          text-overflow: ellipsis;
+          font-weight: 700; font-size: 13px; color: #1e293b; flex: 1;
+        }
+
+        .aam-matched-badge {
+          font-size: 10px; background: #e0f2fe; color: #0369a1;
+          padding: 1px 6px; border-radius: 4px; text-transform: uppercase;
+          font-weight: 700; border: 1px solid #bae6fd;
         }
         
         .aam-train-select {
-          width: 100%; padding: 4px; font-size: 12px;
-          border-radius: 4px; border: 1px solid #ccc;
+          width: 100%; padding: 6px; font-size: 13px;
+          border-radius: 6px; border: 1px solid #cbd5e1;
+          color: #1e293b; background: white;
         }
 
         @keyframes aamPulse {
@@ -176,27 +200,33 @@ AAM.Overlay = {
             <span class="aam-stat-number">${stats.skipped}</span>
             <span class="aam-stat-label">Skipped</span>
           </div>
-          <div class="aam-stat aam-stat-unmatched">
-            <span class="aam-stat-number">${stats.unmatched}</span>
-            <span class="aam-stat-label">Unknown</span>
+          <div class="aam-stat aam-stat-review">
+            <span class="aam-stat-number">${reviewFields.length}</span>
+            <span class="aam-stat-label">Review</span>
           </div>
         </div>
         <div id="aam-overlay-message">
           <strong>Please review your info</strong> before manually submitting.
         </div>
         
-        ${unmatchedFields.length > 0 ? `
-          <button id="aam-train-toggle">Fix ${unmatchedFields.length} Unknown Fields &darr;</button>
+        ${reviewFields.length > 0 ? `
+          <button id="aam-train-toggle">Fix ${reviewFields.length} Review Fields &darr;</button>
           <div id="aam-train-content">
-            ${unmatchedFields.map((field, idx) => `
+            ${reviewFields.map((field, idx) => {
+      const matchedKey = field.profileKey || '';
+      return `
               <div class="aam-train-item" data-selector="${encodeURIComponent(field.selector)}">
-                <span class="aam-train-label" title="${field.context}">${field.displayLabel || 'Field ' + (idx + 1)}</span>
+                <div class="aam-train-label-row">
+                  <span class="aam-train-label" title="${field.context}">${field.displayLabel || 'Field ' + (idx + 1)}</span>
+                  ${matchedKey ? `<span class="aam-matched-badge">${matchedKey}</span>` : ''}
+                  ${field.status === 'missing_value' ? '<span class="aam-missing-badge">Missing Data</span>' : ''}
+                </div>
                 <select class="aam-train-select">
                   <option value="">-- Map this field --</option>
-                  ${profileOptions}
+                  ${profileOptions.replace(`value="${matchedKey}"`, `value="${matchedKey}" selected`)}
                 </select>
               </div>
-            `).join('')}
+            `}).join('')}
           </div>
         ` : ''}
       </div>
@@ -212,7 +242,7 @@ AAM.Overlay = {
         const content = container.querySelector('#aam-train-content');
         const isHidden = content.style.display === 'none' || !content.style.display;
         content.style.display = isHidden ? 'block' : 'none';
-        toggle.innerHTML = isHidden ? 'Close Trainer &uarr;' : `Fix ${unmatchedFields.length} Unknown Fields &darr;`;
+        toggle.innerHTML = isHidden ? 'Close Trainer &uarr;' : `Fix ${reviewFields.length} Review Fields &darr;`;
 
         // Disable auto-dismiss when training
         if (this._dismissTimer) {

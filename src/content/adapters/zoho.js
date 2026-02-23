@@ -37,6 +37,8 @@
                 { selector: '[id^="rec-form_Resume"]', profileKey: 'resumeFile' },
                 { selector: '[id^="rec-form_CV"]', profileKey: 'resumeFile' },
                 { selector: '[id^="rec-form_LinkedIn"]', profileKey: 'linkedinUrl' },
+                { selector: '[id*="English"]', profileKey: 'englishLevel' },
+                { selector: '[id*="Language"]', profileKey: 'englishLevel' },
             ];
         }
     });
