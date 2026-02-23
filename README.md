@@ -2,22 +2,23 @@
 
 **Smart Job Application Automation for Modern Candidates.**
 
-AutoApplyMAX is a powerful browser extension designed to eliminate the repetitive drudgery of job hunting. By leveraging intelligent field detection and a local-first profile system, it empowers you to fill out complex job applications in seconds, ensuring you never miss a great opportunity due to "application fatigue."
+AutoApplyMAX is a powerful browser extension designed to eliminate the repetitive drudgery of job hunting. By leveraging intelligent field detection, a local-first profile system, and community-driven cloud matching, it empowers you to fill out complex job applications in seconds.
 
 ---
 
 ## 🌟 Why AutoApplyMAX?
 
 - **Save Hours Daily**: Turn 10-minute forms into 10-second clicks.
-- **Support for Major Platforms**: Seamlessly works with the web's most popular Applicant Tracking Systems (ATS).
-- **Privacy First**: Your personal data stays on **your** device. We don't have servers, so we don't store your info.
-- **Intelligent Matching**: Uses a heuristic engine to understand form fields even when they use non-standard labels.
+- **Proactive Intelligence**: Detects when you land on a job site and offers a one-click "Prefill" button.
+- **Support for Major Platforms**: Seamlessly works with Greenhouse, Lever, Workday, Zoho Recruit, and more.
+- **Hybrid Matching**: Combines local heuristics with community-shared mappings via Supabase.
+- **Privacy First**: Your personal data stays on **your** device. Cloud syncing is limited to anonymous form field selectors.
 
 ---
 
 ## 🏗 Supported Platforms
 
-AutoApplyMAX currently provides optimized support for:
+AutoApplyMAX provides optimized support for:
 - [x] **LinkedIn** (Easy Apply & external)
 - [x] **Greenhouse** (`boards.greenhouse.io`, `jobs.greenhouse.io`)
 - [x] **Lever** (`jobs.lever.co`)
@@ -30,56 +31,50 @@ AutoApplyMAX currently provides optimized support for:
 
 ## ✨ Features
 
-- **Comprehensive Profile Management**: Store everything from your basic contact info to complex details like salary expectations, work authorization, and demographic data.
-- **Resume Auto-Upload**: Automatically detects and uploads your resume/CV file to supported platforms.
-- **Heuristic Detection Engine**: Uses advanced keyword and regex matching to accurately identify fields like "Years of Experience" or "LinkedIn URL."
-- **Visual Feedback**: Autofilled fields are highlighted so you can quickly review them before submission.
-- **Application History**: (Beta) Keeps a local log of where and when you've applied.
-- **Customizable Overlays**: A sleek, non-intrusive UI that appears only when you need it on application pages.
+- **Proactive Prefill**: A sleek, floating trigger appears automatically on supported sites, making autofill faster than ever.
+- **Cloud Sync (Supabase)**: Opt-in to share and receive field mappings from the community. If one person "teaches" the extension a new field, everyone benefits.
+- **Resume Upload Helper**: Due to browser security, automatic file injection is restricted. We provide a premium "Manual Upload Helper" that gives you a one-click download of your CV right next to the upload button.
+- **Advanced Field Training**: Use the built-in "Trainer" overlay to map unknown fields. See exactly what the engine matched and what's missing from your profile.
+- **Heuristic Detection Engine**: High-confidence matching for "Years of Experience," "English Level," "Work Authorization," and dozens more.
+- **Application History**: Automatically logs every job you submit for easy tracking.
 
 ---
 
-## 🛠 Installation
+## 🛠 Setup & Cloud Sync
 
-### For Users
-1. Download the latest release from the [Releases Page](https://github.com/Stem0794/AutoApplyMAX/releases).
-2. Unzip the archive to a folder on your computer.
-3. Open your browser's extension management page:
-   - **Chrome**: `chrome://extensions`
-   - **Edge**: `edge://extensions`
-4. Toggle **Developer mode** (top right corner).
-5. Click **Load unpacked** and select the folder you unzipped.
+### 1. Installation
+1. Download the latest release.
+2. Unzip the archive.
+3. Open `chrome://extensions`, enable **Developer mode**, and click **Load unpacked**.
 
----
-
-## 📖 Usage
-
-### 1. Set Up Your Profile
-Click the AutoApplyMAX icon in your toolbar to open the **Options** page. Fill in as much information as you're comfortable with. The more you add, the more the extension can automate!
-
-### 2. Navigate to a Job Posting
-Go to any supported job site (e.g., a Greenhouse board or a Workday job portal).
-
-### 3. Click "Auto-Fill"
-A small AutoApplyMAX button will appear on the page. Click it, and watch the magic happen. Review the fields, make any necessary manual tweaks, and hit submit!
+### 2. Configure Supabase (Optional)
+To enable shared community mappings:
+1. Create a free project at [Supabase.com](https://supabase.com).
+2. Create a table named `field_mappings` with the following schema:
+   - `id`: int8 (Primary Key, Identity)
+   - `site_key`: text
+   - `selector`: text
+   - `profile_key`: text
+   - `created_at`: timestamptz (default: now())
+3. Copy your **Project URL** and **Anon Key** into the AutoApplyMAX **Settings** tab.
+4. Click **Sync with Cloud** in the "Learned Mappings" tab to contribute your findings.
 
 ---
 
 ## 🔒 Privacy & Security
 
-We believe your personal and professional data is yours alone.
+- **Local Storage**: Your personal profile (Name, Email, Phone, etc.) is **never** sent to the cloud. It stays on your machine.
+- **Anonymous Mappings**: Only form field selectors (e.g., `#first_name`) and their corresponding profile labels are synced to Supabase. No user data is ever included in these mappings.
 - **Zero Tracking**: No analytics, no tracking pixels, no telemetry.
-- **Local Storage**: All profile data is stored using the `chrome.storage.local` API.
-- **No Cloud**: Data is never synced to any cloud service or external database.
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions of all kinds!
-- **Bug Reports**: Open an issue if something isn't working.
-- **Platform Requests**: Want support for a new ATS? Let us know.
-- **Pull Requests**: Feel free to fork and submit PRs for features or bug fixes.
+We welcome contributions!
+- **Add Adapters**: Help us support more ATS platforms by contributing to `src/content/adapters/`.
+- **Improve Heuristics**: Update `src/shared/profile-schema.js` with move keywords or regex patterns.
+- **Feedback**: Open an issue if a specific site isn't being recognized correctly.
 
 ---
 
