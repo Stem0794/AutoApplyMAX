@@ -35,6 +35,7 @@ AAM.CONSTANTS = {
     ZOHO: ['zohorecruit.com', 'zohorecruit.eu'],
     REVOLUT: ['revolut.com'],
     WORKABLE: ['workable.com'],
+    MAINDER: ['mainder.ai'],
   },
 
   // Supabase Configuration (Sync shared mappings)

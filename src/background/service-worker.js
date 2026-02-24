@@ -110,6 +110,7 @@ async function injectContentScripts(tabId) {
     'src/content/adapters/greenhouse.js',
     'src/content/adapters/lever.js',
     'src/content/adapters/workable.js',
+    'src/content/adapters/mainder.js',
     'src/content/adapters/workday.js',
     'src/content/adapters/revolut.js',
     'src/content/adapters/hirehive.js',
