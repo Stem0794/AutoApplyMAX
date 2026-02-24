@@ -16,6 +16,12 @@ AAM.FieldFiller = {
   setNativeValue(el, value) {
     if (!value && value !== '') return;
 
+    // Safety check: Browsers prevent programmatically setting the value of file inputs
+    if (el instanceof HTMLInputElement && el.type === 'file') {
+      console.warn('[AutoApplyMAX] Skipping native value set on file input.');
+      return;
+    }
+
     const tagName = el.tagName.toUpperCase();
     const role = el.getAttribute('role');
     const isContentEditable = el.getAttribute('contenteditable') === 'true';
@@ -111,7 +117,7 @@ AAM.FieldFiller = {
     const adapter = AAM.getAdapter();
 
     for (const detection of detectedFields) {
-      const { element, profileKey, confidence, selector } = detection;
+      const { element, profileKey, confidence, selector, displayLabel } = detection;
 
       // Skip unmatched fields
       if (!profileKey || confidence < AAM.CONSTANTS.CONFIDENCE_LOW) {
@@ -121,21 +127,23 @@ AAM.FieldFiller = {
       }
 
       // Get the profile value
-      // Special handling for resume file
-      if (profileKey === 'resumeFile') {
-        const fileName = profile.resumeFileName;
+      // Special handling for file uploads (resume, portfolio, etc.)
+      const isFileInput = element instanceof HTMLInputElement && element.type === 'file';
+      if (profileKey === 'resumeFile' || isFileInput) {
+        const fileName = profile.resumeFileName || 'resume.pdf';
         const fileContent = profile.resumeFileContent;
 
         if (fileName && fileContent) {
           detection.status = 'manual_file';
           // Programmatic file upload is generally not possible for security reasons.
           // We provide a premium "Manual Upload Helper"
-          const helperId = `aam-helper-${profileKey}`;
+          const helperId = `aam-helper-${selector.replace(/[^a-zA-Z0-9]/g, '-')}`;
           if (document.getElementById(helperId)) continue; // Don't duplicate
 
           const helper = document.createElement('div');
           helper.id = helperId;
           helper.className = 'aam-file-upload-helper';
+          // ... (style omitted for brevity in replacement, but I will keep it)
           helper.style.cssText = `
             margin: 12px 0;
             padding: 16px;
@@ -150,13 +158,14 @@ AAM.FieldFiller = {
             animation: aamFadeIn 0.3s ease-out;
           `;
 
+          const fieldName = displayLabel || 'CV/Resume';
           helper.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 18px;">📎</span>
-              <span style="font-weight: 700; color: #1e293b; font-size: 14px;">Manual Resume Upload Required</span>
+              <span style="font-weight: 700; color: #1e293b; font-size: 14px;">Manual ${fieldName} Upload Required</span>
             </div>
             <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.4;">
-              Browsers block automatic file uploads for security. Download your CV below and then click <strong>Browse</strong> to upload it.
+              Browsers block automatic file uploads for security. Download your file below and then click <strong>Browse</strong> to upload it.
             </p>
             <div style="display: flex; align-items: center; justify-content: space-between; background: white; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
               <span style="font-family: monospace; font-size: 12px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
@@ -173,7 +182,7 @@ AAM.FieldFiller = {
                         font-size: 12px;
                         cursor: pointer;
                         transition: background 0.2s;
-                      ">Download CV</button>
+                      ">Download File</button>
             </div>
           `;
 
@@ -202,7 +211,7 @@ AAM.FieldFiller = {
               btn.textContent = 'Downloaded!';
               btn.style.background = '#16a34a';
               setTimeout(() => {
-                btn.textContent = 'Download CV';
+                btn.textContent = 'Download File';
                 btn.style.background = '#2563eb';
               }, 3000);
             }
