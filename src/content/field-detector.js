@@ -8,33 +8,44 @@ var AAM = window.AAM || {};
 
 AAM.FieldDetector = {
   /**
-   * Gather all fillable form elements on the page.
+   * Gather all fillable form elements on the page, including those inside Shadow DOMs.
    * @returns {HTMLElement[]}
    */
   getFormFields() {
     const selectors = [
-      'input[type="text"]',
-      'input[type="email"]',
-      'input[type="tel"]',
-      'input[type="url"]',
-      'input[type="number"]',
-      'input[type="search"]',
-      'input[type="file"]', // Added to detect file upload inputs
-      'input:not([type])',
-      'textarea',
-      'select',
-      '[contenteditable="true"]',
-      '[role="textbox"]',
-      '[role="combobox"]',
-    ];
+      'input[type="text"]', 'input[type="email"]', 'input[type="tel"]', 'input[type="url"]',
+      'input[type="number"]', 'input[type="search"]', 'input[type="file"]', 'input:not([type])',
+      'textarea', 'select', '[contenteditable="true"]', '[role="textbox"]', '[role="combobox"]'
+    ].join(', ');
 
-    const fields = document.querySelectorAll(selectors.join(', '));
+    const allFields = [];
+
+    // Recursive function to search through normal DOM and Shadow DOMs
+    function traverse(root) {
+      if (!root) return;
+
+      // Find fields in the current root
+      const nodes = root.querySelectorAll(selectors);
+      nodes.forEach(node => allFields.push(node));
+
+      // Find all elements in current root that might have a shadowRoot
+      const allElements = root.querySelectorAll('*');
+      allElements.forEach(el => {
+        if (el.shadowRoot) {
+          traverse(el.shadowRoot);
+        }
+      });
+    }
+
+    // Start traversal from the main document
+    traverse(document);
+
     // Filter out hidden, disabled, or very small fields
-    return Array.from(fields).filter(el => {
+    return allFields.filter(el => {
       if (el.disabled || el.readOnly) return false;
       if (el.type === 'hidden') return false;
 
-      // File inputs are often hidden by modern ATS (Workday, Zoho)
+      // File inputs are often hidden by modern ATS
       if (el.tagName === 'INPUT' && el.type === 'file') return true;
 
       const rect = el.getBoundingClientRect();

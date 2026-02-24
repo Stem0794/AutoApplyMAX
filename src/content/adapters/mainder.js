@@ -33,23 +33,29 @@
 
         getKnownMappings() {
             return [
-                { selector: 'input[placeholder*="first name"], input[placeholder*="nombre"]', profileKey: 'firstName' },
-                { selector: 'input[placeholder*="last name"], input[placeholder*="apellido"]', profileKey: 'lastName' },
-                { selector: 'input[placeholder*="email"], input[placeholder*="correo"]', profileKey: 'email' },
-                { selector: 'input[placeholder*="phone"], input[placeholder*="teléfono"]', profileKey: 'phone' },
+                { selector: 'input[placeholder*="first name"], input[placeholder*="nombre"], input[placeholder*="prénom"], input[placeholder*="vorname"], input[placeholder*="nome"]', profileKey: 'firstName' },
+                { selector: 'input[placeholder*="last name"], input[placeholder*="apellido"], input[placeholder*="nom"], input[placeholder*="nachname"], input[placeholder*="cognome"]', profileKey: 'lastName' },
+                { selector: 'input[placeholder*="email"], input[placeholder*="correo"], input[placeholder*="e-mail"]', profileKey: 'email' },
+                { selector: 'input[placeholder*="phone"], input[placeholder*="teléfono"], input[placeholder*="téléphone"], input[placeholder*="telefon"], input[placeholder*="telefono"]', profileKey: 'phone' },
                 { selector: 'input[placeholder*="LinkedIn"]', profileKey: 'linkedinUrl' },
-                { selector: 'input[placeholder*="salary"], input[placeholder*="salario"]', profileKey: 'salaryExpectation' },
+                { selector: 'input[placeholder*="salary"], input[placeholder*="salario"], input[placeholder*="salaire"], input[placeholder*="gehalt"], input[placeholder*="stipendio"]', profileKey: 'salaryExpectation' },
                 { selector: 'input[type="file"]', profileKey: 'resumeFile' },
-                // Generic mappings for common killer questions in the modal
+                // Generic dropdown and textarea support
+                { selector: 'select', profileKey: 'heuristic' }, // Let field-detector map selects
                 { selector: 'textarea', profileKey: 'summary' },
             ];
         },
 
         async afterFill(result) {
-            // Auto-check privacy policy if found in the modal
-            const privacyCheckbox = document.querySelector('input[type="checkbox"]');
-            if (privacyCheckbox && !privacyCheckbox.checked) {
-                privacyCheckbox.click();
+            // Precision auto-check privacy policy / terms if found in the modal
+            const checkboxes = Array.from(document.querySelectorAll('input[type="checkbox"]'));
+            for (const cb of checkboxes) {
+                const parentText = (cb.closest('label') || cb.parentElement).textContent.toLowerCase();
+                if (parentText.match(/privacy|terms|privacidad|términos|confidentialité|datenschutz|condizioni/)) {
+                    if (!cb.checked) {
+                        cb.click();
+                    }
+                }
             }
         }
     });

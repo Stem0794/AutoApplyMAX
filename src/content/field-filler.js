@@ -130,8 +130,21 @@ AAM.FieldFiller = {
       // Special handling for file uploads (resume, portfolio, etc.)
       const isFileInput = element instanceof HTMLInputElement && element.type === 'file';
       if (profileKey === 'resumeFile' || isFileInput) {
-        const fileName = profile.resumeFileName || 'resume.pdf';
+        let fileName = profile.resumeFileName || 'resume.pdf';
         const fileContent = profile.resumeFileContent;
+
+        // Smarter file renaming based on profile data and field context
+        if (profile.firstName && profile.lastName) {
+          const cleanFirst = profile.firstName.trim().replace(/[^a-zA-Z]/g, '');
+          const cleanLast = profile.lastName.trim().replace(/[^a-zA-Z]/g, '');
+          const labelContext = (displayLabel || 'Resume').replace(/[^a-zA-Z]/g, '');
+          const docType = labelContext.length > 0 ? labelContext : 'Document';
+          const ext = fileName.includes('.') ? fileName.substring(fileName.lastIndexOf('.')) : '.pdf';
+
+          if (cleanFirst && cleanLast) {
+            fileName = `${cleanFirst}_${cleanLast}_${docType}${ext}`;
+          }
+        }
 
         if (fileName && fileContent) {
           detection.status = 'manual_file';
