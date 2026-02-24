@@ -34,6 +34,7 @@ AAM.CONSTANTS = {
     HIREHIVE: ['hirehive.com'],
     ZOHO: ['zohorecruit.com', 'zohorecruit.eu'],
     REVOLUT: ['revolut.com'],
+    WORKABLE: ['workable.com'],
   },
 
   // Supabase Configuration (Sync shared mappings)
@@ -51,6 +52,8 @@ AAM.CONSTANTS = {
     PROFILE_UPDATED: 'aam:profile_updated',
     LOG_APPLICATION: 'aam:log_application',
     GET_APPLIED_JOBS: 'aam:get_applied_jobs',
+    AUTOFILL_COMPLETED: 'aam:autofill_completed',
+    PAGE_INFO: 'aam:page_info',
   },
 };
 

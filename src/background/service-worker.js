@@ -14,7 +14,12 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-// Listen for messages from the popup
+// Enable side panel to open on action click
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((error) => console.error(error));
+
+// Listen for messages from the popup or sidepanel
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'aam:trigger_autofill') {
     handleAutofillTrigger(msg, sendResponse);
@@ -104,7 +109,9 @@ async function injectContentScripts(tabId) {
     'src/content/adapters/linkedin.js',
     'src/content/adapters/greenhouse.js',
     'src/content/adapters/lever.js',
+    'src/content/adapters/workable.js',
     'src/content/adapters/workday.js',
+    'src/content/adapters/revolut.js',
     'src/content/adapters/hirehive.js',
     'src/content/adapters/zoho.js',
     'src/content/field-detector.js',

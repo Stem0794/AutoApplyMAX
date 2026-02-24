@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>AutoApplyMAX Control Center</title>
+    <link rel="stylesheet" href="sidepanel.css">
+</head>
+
+<body>
+    <div class="sidepanel-container">
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">A</div>
+                <h1>AutoApplyMAX</h1>
+            </div>
+            <button id="btn-settings" class="icon-btn" title="Open Settings">⚙️</button>
+        </header>
+
+        <main class="content">
+            <div class="status-card" id="status-card">
+                <div class="status-indicator inactive" id="status-dot"></div>
+                <div class="status-info">
+                    <h3 id="site-name">No active job site</h3>
+                    <p id="site-status">Open a supported careers page to start.</p>
+                </div>
+            </div>
+
+            <div class="action-section">
+                <button id="btn-prefill" class="btn btn-primary btn-large" disabled>
+                    <span class="btn-text">Autofill This Job</span>
+                </button>
+                <p class="hint">One-click prefill for recognized platforms.</p>
+            </div>
+
+            <div class="stats-section">
+                <h3>Application Stats</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-value" id="stat-total">0</span>
+                        <span class="stat-label">Total Logs</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="stat-today">0</span>
+                        <span class="stat-label">Today</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="history-section">
+                <div class="section-header">
+                    <h3>Recent Activity</h3>
+                    <a href="#" id="view-all-history">View All</a>
+                </div>
+                <div id="activity-list" class="activity-list">
+                    <p class="empty-msg">No recent applications.</p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Premium Autofill Engine v1.1.0</p>
+        </footer>
+    </div>
+
+    <script src="../shared/constants.js"></script>
+    <script src="../shared/storage.js"></script>
+    <script src="sidepanel.js"></script>
+</body>
+
+</html>

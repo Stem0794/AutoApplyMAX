@@ -181,6 +181,17 @@ AAM.Autofill = {
         }, detectedFields, siteKey);
       }
 
+      // 11. Notify the background/sidepanel that we're done
+      chrome.runtime.sendMessage({
+        type: AAM.CONSTANTS.MSG.AUTOFILL_COMPLETED,
+        result: {
+          filled: result.filled,
+          skipped: result.skipped,
+          unmatched: result.unmatched,
+          adapter: adapter.name
+        }
+      });
+
       return {
         filled: result.filled,
         skipped: result.skipped,

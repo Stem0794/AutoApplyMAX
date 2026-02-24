@@ -28,17 +28,15 @@ const GreenhouseAdapter = Object.assign({}, AAM.AdapterBase, {
 
   getKnownMappings() {
     return [
-      { selector: '#first_name', profileKey: 'firstName' },
-      { selector: '#last_name', profileKey: 'lastName' },
-      { selector: '#email', profileKey: 'email' },
-      { selector: '#phone', profileKey: 'phone' },
-      { selector: '#job_application_location', profileKey: 'city' },
-      { selector: '#job_application_answers_attributes_0_text_value', profileKey: 'linkedinUrl' },
-      { selector: 'input[name="job_application[first_name]"]', profileKey: 'firstName' },
-      { selector: 'input[name="job_application[last_name]"]', profileKey: 'lastName' },
-      { selector: 'input[name="job_application[email]"]', profileKey: 'email' },
-      { selector: 'input[name="job_application[phone]"]', profileKey: 'phone' },
-      { selector: 'input[name="job_application[location]"]', profileKey: 'city' },
+      { selector: '#first_name, input[name*="first_name"]', profileKey: 'firstName' },
+      { selector: '#last_name, input[name*="last_name"]', profileKey: 'lastName' },
+      { selector: '#email, input[name*="email"]', profileKey: 'email' },
+      { selector: '#phone, input[name*="phone"]', profileKey: 'phone' },
+      { selector: '#job_application_location, input[name*="location"]', profileKey: 'city' },
+      { selector: '#resume_upload, input[type="file"][name*="resume"]', profileKey: 'resumeFile' },
+      { selector: 'input[placeholder*="LinkedIn"], input[name*="linkedin"]', profileKey: 'linkedinUrl' },
+      { selector: 'input[placeholder*="GitHub"], input[name*="github"]', profileKey: 'githubUrl' },
+      { selector: 'input[placeholder*="Portfolio"], input[name*="portfolio"], input[name*="website"]', profileKey: 'portfolioUrl' },
     ];
   },
 

@@ -6,8 +6,12 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "sidePanel"
   ],
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
+  },
   "host_permissions": [
     "https://www.linkedin.com/*",
     "https://linkedin.com/*",
@@ -47,7 +51,8 @@
         "https://*.hirehive.com/*",
         "https://*.zohorecruit.eu/*",
         "https://*.zohorecruit.com/*",
-        "https://www.revolut.com/*"
+        "https://www.revolut.com/*",
+        "https://apply.workable.com/*"
       ],
       "js": [
         "src/shared/constants.js",
@@ -58,6 +63,7 @@
         "src/content/adapters/linkedin.js",
         "src/content/adapters/greenhouse.js",
         "src/content/adapters/lever.js",
+        "src/content/adapters/workable.js",
         "src/content/adapters/workday.js",
         "src/content/adapters/hirehive.js",
         "src/content/adapters/zoho.js",
