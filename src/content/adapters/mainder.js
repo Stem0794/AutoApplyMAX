@@ -38,6 +38,7 @@
                 { selector: 'input[placeholder*="email"], input[placeholder*="correo"]', profileKey: 'email' },
                 { selector: 'input[placeholder*="phone"], input[placeholder*="teléfono"]', profileKey: 'phone' },
                 { selector: 'input[placeholder*="LinkedIn"]', profileKey: 'linkedinUrl' },
+                { selector: 'input[placeholder*="salary"], input[placeholder*="salario"]', profileKey: 'salaryExpectation' },
                 { selector: 'input[type="file"]', profileKey: 'resumeFile' },
                 // Generic mappings for common killer questions in the modal
                 { selector: 'textarea', profileKey: 'summary' },
