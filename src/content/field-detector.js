@@ -242,9 +242,12 @@ AAM.FieldDetector = {
       'url': 'portfolioUrl',
     };
 
-    // Check autocomplete in context
+    // Check actual autocomplete attribute
+    const autocompleteAttr = (field.getAttribute('autocomplete') || '').toLowerCase();
+    const autocompleteTokens = autocompleteAttr.split(/\s+/);
+
     for (const [autoVal, profileKey] of Object.entries(autocompleteMap)) {
-      if (ctx.includes(autoVal) && profileKey === fieldDef.key) {
+      if (autocompleteTokens.includes(autoVal) && profileKey === fieldDef.key) {
         score = Math.max(score, 0.95);
       }
     }

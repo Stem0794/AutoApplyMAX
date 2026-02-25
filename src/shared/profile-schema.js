@@ -26,7 +26,7 @@ AAM.PROFILE_FIELDS = [
     label: 'First Name',
     type: 'text',
     group: 'personal',
-    keywords: ['first name', 'given name', 'your first name', 'candidate first name', 'fname', 'prenom'],
+    keywords: ['first name', 'given name', 'your first name', 'candidate first name', 'fname', 'prenom', 'prénom', 'nombre', 'nome', 'vorname'],
     aliases: [/first[\s_-]?name/i, /given[\s_-]?name/i, /fname/i],
   },
   {
@@ -34,7 +34,7 @@ AAM.PROFILE_FIELDS = [
     label: 'Last Name',
     type: 'text',
     group: 'personal',
-    keywords: ['last name', 'last_name', 'lastname', 'surname', 'family name', 'lname'],
+    keywords: ['last name', 'last_name', 'lastname', 'surname', 'family name', 'lname', 'apellido', 'nom', 'cognome', 'nachname'],
     aliases: [/last[\s_-]?name/i, /sur[\s_-]?name/i, /family[\s_-]?name/i, /lname/i],
   },
   {
@@ -50,8 +50,8 @@ AAM.PROFILE_FIELDS = [
     label: 'Email Address',
     type: 'email',
     group: 'personal',
-    keywords: ['email', 'e-mail', 'email address', 'email_address', 'mail'],
-    aliases: [/e[\s_-]?mail/i, /email[\s_-]?address/i],
+    keywords: ['email', 'e-mail', 'email address', 'email_address', 'mail', 'correo', 'correo electrónico'],
+    aliases: [/e[\s_-]?mail/i, /email[\s_-]?address/i, /correo[\s_-]?electr[oó]nico/i],
   },
   {
     key: 'phoneCountryCode',
@@ -66,7 +66,7 @@ AAM.PROFILE_FIELDS = [
     label: 'Phone Number',
     type: 'tel',
     group: 'personal',
-    keywords: ['phone', 'telephone', 'phone number', 'phone_number', 'mobile', 'cell', 'contact number'],
+    keywords: ['phone', 'telephone', 'phone number', 'phone_number', 'mobile', 'cell', 'contact number', 'teléfono', 'téléphone', 'telefono', 'telefon'],
     aliases: [/phone[\s_-]?number/i, /tele[\s_-]?phone/i, /mobile[\s_-]?(number|phone)?/i, /cell[\s_-]?(phone)?/i],
   },
   {
@@ -230,7 +230,7 @@ AAM.PROFILE_FIELDS = [
     label: 'Salary Expectation',
     type: 'text',
     group: 'additional',
-    keywords: ['salary', 'salary expectation', 'expected salary', 'compensation', 'desired salary'],
+    keywords: ['salary', 'salary expectation', 'expected salary', 'compensation', 'desired salary', 'salario', 'salaire', 'gehalt', 'stipendio'],
     aliases: [/salary/i, /compensation/i, /desired[\s_-]?salary/i, /expected[\s_-]?salary/i],
   },
   {
@@ -264,6 +264,14 @@ AAM.PROFILE_FIELDS = [
     group: 'additional',
     keywords: ['how did you hear', 'source', 'where did you hear', 'how did you find'],
     aliases: [/how[\s_-]?did[\s_-]?you[\s_-]?hear/i, /^source$/i],
+  },
+  {
+    key: 'privacyPolicyConsent',
+    label: 'Privacy Policy Consent (Type "Yes" or "I Accept")',
+    type: 'text',
+    group: 'additional',
+    keywords: ['privacy policy', 'privacy notice', 'data protection', 'personal data', 'terms and conditions'],
+    aliases: [/privacy[\s_-]?(policy|notice)/i, /data[\s_-]?protection/i, /personal[\s_-]?data/i],
   },
   {
     key: 'gender',
