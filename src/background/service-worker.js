@@ -670,6 +670,8 @@ const CLOUD_SYNC_FIELDS = new Set([
   'linkedinUrl', 'githubUrl', 'portfolioUrl', 'currentTitle', 'currentCompany',
   'yearsExperience', 'education', 'preferredLocations', 'skills', 'englishLevel',
   'startDate', 'workAuthorization', 'sponsorshipRequirement', 'howDidYouHear',
+  'salaryExpectation', 'gender', 'ethnicity', 'disabilityStatus', 'veteranStatus',
+  'privacyPolicyConsent', 'coverLetter',
 ]);
 
 async function sendMagicLink(email) {
