@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AutoApplyMAX",
-  "version": "1.0.0",
-  "description": "Smart job application autofill for LinkedIn, Greenhouse, Lever, Workday, HireHive and more.",
+  "version": "1.1.0",
+  "description": "Smart job application autofill for LinkedIn, Greenhouse, Lever, Workday, Ashby, SmartRecruiters, iCIMS, SuccessFactors, Taleo and more.",
   "permissions": ["storage", "activeTab", "scripting", "sidePanel", "downloads"],
   "side_panel": {
     "default_path": "src/sidepanel/sidepanel.html"
@@ -20,7 +20,20 @@
     "https://*.zohorecruit.com/*",
     "https://www.revolut.com/*",
     "https://apply.workable.com/*",
-    "https://*.mainder.ai/*"
+    "https://*.mainder.ai/*",
+    "https://jobs.ashbyhq.com/*",
+    "https://*.ashbyhq.com/*",
+    "https://*.smartrecruiters.com/*",
+    "https://*.icims.com/*",
+    "https://*.successfactors.com/*",
+    "https://*.successfactors.eu/*",
+    "https://*.taleo.net/*",
+    "https://*.recruitee.com/*",
+    "https://*.teamtailor.com/*",
+    "https://*.applytojob.com/*",
+    "https://*.breezy.hr/*",
+    "https://*.jobvite.com/*",
+    "https://*.bamboohr.com/*"
   ],
   "background": {
     "service_worker": "src/background/service-worker.js"
@@ -65,6 +78,17 @@
         "src/content/adapters/hirehive.js",
         "src/content/adapters/zoho.js",
         "src/content/adapters/revolut.js",
+        "src/content/adapters/ashby.js",
+        "src/content/adapters/smartrecruiters.js",
+        "src/content/adapters/icims.js",
+        "src/content/adapters/successfactors.js",
+        "src/content/adapters/taleo.js",
+        "src/content/adapters/recruitee.js",
+        "src/content/adapters/teamtailor.js",
+        "src/content/adapters/jazzhr.js",
+        "src/content/adapters/breezy.js",
+        "src/content/adapters/jobvite.js",
+        "src/content/adapters/bamboohr.js",
         "src/content/field-detector.js",
         "src/content/field-filler.js",
         "src/content/learning-engine.js",

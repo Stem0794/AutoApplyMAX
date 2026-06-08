@@ -45,6 +45,17 @@ AAM.CONSTANTS = {
     REVOLUT: ['revolut.com'],
     WORKABLE: ['workable.com'],
     MAINDER: ['mainder.ai'],
+    ASHBY: ['ashbyhq.com', 'jobs.ashbyhq.com'],
+    SMARTRECRUITERS: ['smartrecruiters.com'],
+    ICIMS: ['icims.com'],
+    SUCCESSFACTORS: ['successfactors.com', 'successfactors.eu'],
+    TALEO: ['taleo.net'],
+    RECRUITEE: ['recruitee.com'],
+    TEAMTAILOR: ['teamtailor.com'],
+    JAZZHR: ['applytojob.com'],
+    BREEZY: ['breezy.hr'],
+    JOBVITE: ['jobvite.com'],
+    BAMBOOHR: ['bamboohr.com'],
   },
 
   COMMUNITY_API_URL:
@@ -105,6 +116,17 @@ AAM.getSupportedATS = function (urlValue) {
     ['ZOHO', ['zohorecruit.com', 'zohorecruit.eu']],
     ['WORKABLE', ['apply.workable.com']],
     ['MAINDER', ['mainder.ai']],
+    ['ASHBY', ['ashbyhq.com']],
+    ['SMARTRECRUITERS', ['smartrecruiters.com']],
+    ['ICIMS', ['icims.com']],
+    ['SUCCESSFACTORS', ['successfactors.com', 'successfactors.eu']],
+    ['TALEO', ['taleo.net']],
+    ['RECRUITEE', ['recruitee.com']],
+    ['TEAMTAILOR', ['teamtailor.com']],
+    ['JAZZHR', ['applytojob.com']],
+    ['BREEZY', ['breezy.hr']],
+    ['JOBVITE', ['jobvite.com']],
+    ['BAMBOOHR', ['bamboohr.com']],
   ];
 
   for (const [name, hosts] of checks) {
