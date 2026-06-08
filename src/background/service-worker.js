@@ -425,7 +425,13 @@ function safeHttpUrl(value, fallbackOrigin) {
 }
 
 async function saveResumeMessage(message) {
-  const bytes = message.bytes;
+  let bytes = message.bytes;
+  if (!(bytes instanceof ArrayBuffer) && typeof message.bytesBase64 === 'string') {
+    const binary = atob(message.bytesBase64);
+    const buf = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
+    bytes = buf.buffer;
+  }
   const name = cleanText(message.name, 255);
   const mime = cleanText(message.mime, 100);
   if (

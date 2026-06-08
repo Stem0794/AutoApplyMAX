@@ -152,7 +152,7 @@ async function saveProfile() {
           type: AAM.CONSTANTS.MSG.SAVE_RESUME,
           name: file.name,
           mime: file.type || 'application/octet-stream',
-          bytes: await file.arrayBuffer(),
+          bytesBase64: await fileToBase64(file),
         });
         if (response?.error) throw new Error(response.error);
         profile.resumeAsset = response;
@@ -916,14 +916,22 @@ function escapeText(value) {
 
 // ── Utilities ───────────────────────────────────────
 
-/**
- * Converts a File object to a Base64 string.
- * @param {File} file
- * @returns {Promise<String>} Base64 encoded string
- */
 function validateResume(file) {
   if (file.size > AAM.CONSTANTS.MAX_RESUME_BYTES) throw new Error('Resume exceeds 5 MB');
   if (!/\.(pdf|doc|docx)$/i.test(file.name)) throw new Error('Resume must be PDF, DOC, or DOCX');
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      // result is "data:<mime>;base64,<b64>" — strip the prefix
+      const b64 = String(reader.result).split(',')[1] || '';
+      resolve(b64);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 function toSafeHttpUrl(value) {
