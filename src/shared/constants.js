@@ -74,6 +74,7 @@ AAM.CONSTANTS = {
     SUBMIT_MAPPINGS: 'aam:submit_mappings',
     SEND_MAGIC_LINK: 'aam:send_magic_link',
     VERIFY_OTP: 'aam:verify_otp',
+    SIGN_IN: 'aam:sign_in',
     SIGN_OUT: 'aam:sign_out',
     GET_AUTH_STATE: 'aam:get_auth_state',
   },

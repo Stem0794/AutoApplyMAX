@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
 let _currentProfile = {};
 let _authState = { signedIn: false };
 
+
 // ── Tab Navigation ──────────────────────────────────
 
 function initTabs() {
@@ -540,14 +541,9 @@ function initEventListeners() {
   });
 
   // Account tab
-  document.getElementById('btn-send-magic-link').addEventListener('click', handleSendMagicLink);
-  document.getElementById('btn-verify-otp').addEventListener('click', handleVerifyOTP);
-  document.getElementById('btn-resend-otp').addEventListener('click', () => {
-    document.getElementById('account-email-step').classList.remove('hidden');
-    document.getElementById('account-otp-step').classList.add('hidden');
-    const btn = document.getElementById('btn-send-magic-link');
-    btn.disabled = false;
-    btn.textContent = 'Send sign-in code';
+  document.getElementById('btn-sign-in').addEventListener('click', handleSignIn);
+  document.getElementById('account-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleSignIn();
   });
   document.getElementById('btn-sign-out').addEventListener('click', handleSignOut);
 
@@ -566,8 +562,6 @@ function initEventListeners() {
 }
 
 // ── Account / Auth ────────────────────────────────────
-
-let _pendingEmail = '';
 
 async function loadAccount() {
   try {
@@ -595,51 +589,29 @@ function renderAccountState(state) {
   } else {
     signedOut.classList.remove('hidden');
     signedIn.classList.add('hidden');
-    document.getElementById('account-email-step').classList.remove('hidden');
-    document.getElementById('account-otp-step').classList.add('hidden');
-    _pendingEmail = '';
     if (hint) hint.textContent = 'Profile is stored locally in your browser.';
   }
 }
 
-async function handleSendMagicLink() {
+async function handleSignIn() {
   const email = document.getElementById('account-email').value.trim();
-  const btn = document.getElementById('btn-send-magic-link');
+  const password = document.getElementById('account-password').value;
+  const btn = document.getElementById('btn-sign-in');
   btn.disabled = true;
-  btn.textContent = 'Sending...';
+  btn.textContent = 'Signing in...';
 
   try {
-    const result = await chrome.runtime.sendMessage({ type: AAM.CONSTANTS.MSG.SEND_MAGIC_LINK, email });
-    if (result?.error) throw new Error(result.error);
-    _pendingEmail = email;
-    document.getElementById('account-email-step').classList.add('hidden');
-    document.getElementById('account-otp-step').classList.remove('hidden');
-    document.getElementById('account-otp').focus();
-    showStatus('Code sent! Check your email.', 'success');
-  } catch (err) {
-    showStatus('Failed to send code: ' + err.message, 'error');
-    btn.disabled = false;
-    btn.textContent = 'Send sign-in code';
-  }
-}
-
-async function handleVerifyOTP() {
-  const token = document.getElementById('account-otp').value.trim();
-  const btn = document.getElementById('btn-verify-otp');
-  btn.disabled = true;
-  btn.textContent = 'Verifying...';
-
-  try {
-    const result = await chrome.runtime.sendMessage({ type: AAM.CONSTANTS.MSG.VERIFY_OTP, email: _pendingEmail, token });
+    const result = await chrome.runtime.sendMessage({ type: AAM.CONSTANTS.MSG.SIGN_IN, email, password });
     if (result?.error) throw new Error(result.error);
     _authState = { signedIn: true, email: result.email };
+    document.getElementById('account-password').value = '';
     showStatus('Signed in! Your profile is now syncing.', 'success');
     renderAccountState(_authState);
     await loadProfile();
   } catch (err) {
-    showStatus('Verification failed: ' + err.message, 'error');
+    showStatus(err.message, 'error');
     btn.disabled = false;
-    btn.textContent = 'Verify code';
+    btn.textContent = 'Sign in';
   }
 }
 

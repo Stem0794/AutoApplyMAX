@@ -56,12 +56,9 @@ async function handleMessage(message, sender) {
     case AAM.CONSTANTS.MSG.SUBMIT_MAPPINGS:
       assertExtensionPageSender(sender);
       return submitMappings(message.mappings);
-    case AAM.CONSTANTS.MSG.SEND_MAGIC_LINK:
+    case AAM.CONSTANTS.MSG.SIGN_IN:
       assertExtensionPageSender(sender);
-      return sendMagicLink(message.email);
-    case AAM.CONSTANTS.MSG.VERIFY_OTP:
-      assertExtensionPageSender(sender);
-      return verifyOTP(message.email, message.token);
+      return signInWithPassword(message.email, message.password);
     case AAM.CONSTANTS.MSG.SIGN_OUT:
       assertExtensionPageSender(sender);
       return signOut();
@@ -680,41 +677,23 @@ function requireApiUrl() {
   }
 }
 
-async function sendMagicLink(email) {
+async function signInWithPassword(email, password) {
   requireApiUrl();
-  if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-    throw new Error('Invalid email address');
-  }
-  const response = await fetch(new URL('/auth/v1/otp', AAM.CONSTANTS.COMMUNITY_API_URL), {
-    method: 'POST',
-    headers: {
-      apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ email: email.trim(), create_user: true }),
-  });
+  if (!email || !password) throw new Error('Email and password are required');
+  const response = await fetch(
+    new URL('/auth/v1/token?grant_type=password', AAM.CONSTANTS.COMMUNITY_API_URL),
+    {
+      method: 'POST',
+      headers: {
+        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: email.trim(), password }),
+    }
+  );
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.msg || err.error_description || 'Failed to send sign-in code');
-  }
-  return { sent: true };
-}
-
-async function verifyOTP(email, token) {
-  if (!email || !token || typeof token !== 'string' || !/^\d{6}$/.test(token.trim())) {
-    throw new Error('Enter the 6-digit code from your email');
-  }
-  const response = await fetch(new URL('/auth/v1/verify', AAM.CONSTANTS.COMMUNITY_API_URL), {
-    method: 'POST',
-    headers: {
-      apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ type: 'email', email: email.trim(), token: token.trim() }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.msg || err.error_description || 'Invalid or expired code');
+    throw new Error(err.error_description || err.msg || 'Invalid email or password');
   }
   const raw = await response.json();
   return persistUserSession(raw);

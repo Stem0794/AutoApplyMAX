@@ -124,26 +124,15 @@
         </div>
 
         <div id="account-signed-out">
-          <div id="account-email-step">
-            <div class="form-group" style="max-width:380px">
-              <label for="account-email">Email address</label>
-              <input type="email" id="account-email" placeholder="you@example.com" autocomplete="email">
-            </div>
-            <button type="button" id="btn-send-magic-link" class="btn btn-primary">Send sign-in code</button>
+          <div class="form-group" style="max-width:380px">
+            <label for="account-email">Email address</label>
+            <input type="email" id="account-email" placeholder="you@example.com" autocomplete="email">
           </div>
-
-          <div id="account-otp-step" class="hidden">
-            <p style="margin-bottom:12px">Check your email for a 6-digit code.</p>
-            <div class="form-group" style="max-width:200px">
-              <label for="account-otp">6-digit code</label>
-              <input type="text" id="account-otp" placeholder="123456" maxlength="6"
-                autocomplete="one-time-code" inputmode="numeric">
-            </div>
-            <div style="display:flex;gap:8px">
-              <button type="button" id="btn-verify-otp" class="btn btn-primary">Verify code</button>
-              <button type="button" id="btn-resend-otp" class="btn btn-outline">Resend</button>
-            </div>
+          <div class="form-group" style="max-width:380px">
+            <label for="account-password">Password</label>
+            <input type="password" id="account-password" placeholder="••••••••" autocomplete="current-password">
           </div>
+          <button type="button" id="btn-sign-in" class="btn btn-primary">Sign in</button>
         </div>
 
         <div id="account-signed-in" class="hidden">
