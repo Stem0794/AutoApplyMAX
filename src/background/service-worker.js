@@ -75,6 +75,18 @@ async function handleMessage(message, sender) {
     case AAM.CONSTANTS.MSG.GET_AUTH_STATE:
       assertExtensionPageSender(sender);
       return getAuthState();
+    case AAM.CONSTANTS.MSG.ADMIN_LIST_REQUESTS:
+      assertExtensionPageSender(sender);
+      return adminListFieldRequests();
+    case AAM.CONSTANTS.MSG.ADMIN_SET_REQUEST_STATUS:
+      assertExtensionPageSender(sender);
+      return adminSetFieldRequestStatus(message.id, message.status);
+    case AAM.CONSTANTS.MSG.ADMIN_LIST_PENDING_MAPPINGS:
+      assertExtensionPageSender(sender);
+      return adminListPendingMappings();
+    case AAM.CONSTANTS.MSG.ADMIN_REVIEW_MAPPING:
+      assertExtensionPageSender(sender);
+      return adminReviewMapping(message.submissionId, message.decision, message.note);
     default:
       return { error: 'Unsupported message type' };
   }
@@ -921,7 +933,149 @@ async function persistUserSession(raw) {
 async function getAuthState() {
   const session = await getUserSession().catch(() => null);
   if (!session) return { signedIn: false };
-  return { signedIn: true, email: session.email, userId: session.userId };
+  const isReviewer = await checkIsReviewer(session).catch(() => false);
+  return { signedIn: true, email: session.email, userId: session.userId, isReviewer };
+}
+
+/** Ask the backend whether the signed-in user is a mapping reviewer (admin). */
+async function checkIsReviewer(session) {
+  const response = await fetch(
+    new URL('/rest/v1/rpc/is_mapping_reviewer', AAM.CONSTANTS.COMMUNITY_API_URL),
+    {
+      method: 'POST',
+      headers: {
+        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    }
+  );
+  if (!response.ok) return false;
+  return (await response.json()) === true;
+}
+
+/**
+ * Fetch against the community backend authenticated as the signed-in user.
+ * Throws if the user isn't signed in. Used for all reviewer/admin operations —
+ * the server still enforces reviewer access via RLS and SECURITY DEFINER checks.
+ */
+async function authedFetch(path, init = {}) {
+  requireApiUrl();
+  const session = await getUserSession().catch(() => null);
+  if (!session) throw new Error('Please sign in to your account first');
+  const response = await fetch(new URL(path, AAM.CONSTANTS.COMMUNITY_API_URL), {
+    ...init,
+    headers: {
+      apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${session.accessToken}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(init.headers || {}),
+    },
+  });
+  return response;
+}
+
+async function adminListFieldRequests() {
+  const response = await authedFetch(
+    '/rest/v1/field_requests?select=id,suggested_label,note,site_key,host,status,created_at&order=created_at.desc&limit=200'
+  );
+  if (!response.ok) {
+    throw new Error(
+      response.status === 401 || response.status === 403
+        ? 'Reviewer access required'
+        : 'Failed to load field requests'
+    );
+  }
+  return response.json();
+}
+
+async function adminSetFieldRequestStatus(id, status) {
+  if (!Number.isInteger(id)) throw new Error('Invalid request id');
+  if (!['open', 'planned', 'done', 'declined'].includes(status)) {
+    throw new Error('Invalid status');
+  }
+  const response = await authedFetch('/rest/v1/rpc/set_field_request_status', {
+    method: 'POST',
+    body: JSON.stringify({ p_id: id, p_status: status }),
+  });
+  if (!response.ok) throw new Error('Failed to update request');
+  return { ok: true };
+}
+
+async function adminListPendingMappings() {
+  const response = await authedFetch(
+    '/rest/v1/pending_mapping_submissions?review_status=eq.pending' +
+      '&select=id,site_key,field_signature,profile_key,submitted_by,created_at' +
+      '&order=created_at.desc&limit=500'
+  );
+  if (!response.ok) {
+    throw new Error(
+      response.status === 401 || response.status === 403
+        ? 'Reviewer access required'
+        : 'Failed to load pending mappings'
+    );
+  }
+  const rows = await response.json();
+
+  // Aggregate by (site_key, field_signature, profile_key): the consensus unit.
+  const groups = new Map();
+  for (const row of rows) {
+    const key = `${row.site_key}|${row.field_signature}|${row.profile_key}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        siteKey: row.site_key,
+        fieldSignature: row.field_signature,
+        profileKey: row.profile_key,
+        submissionId: row.id, // representative (most recent)
+        submitters: new Set(),
+        firstSeen: row.created_at,
+      });
+    }
+    const group = groups.get(key);
+    group.submitters.add(row.submitted_by);
+    if (row.created_at < group.firstSeen) group.firstSeen = row.created_at;
+  }
+
+  return [...groups.values()]
+    .map(g => ({
+      siteKey: g.siteKey,
+      fieldSignature: g.fieldSignature,
+      profileKey: g.profileKey,
+      submissionId: g.submissionId,
+      submitterCount: g.submitters.size,
+      firstSeen: g.firstSeen,
+    }))
+    .sort((a, b) => b.submitterCount - a.submitterCount);
+}
+
+async function adminReviewMapping(submissionId, decision, note) {
+  if (typeof submissionId !== 'string' || !/^[0-9a-f-]{36}$/i.test(submissionId)) {
+    throw new Error('Invalid submission id');
+  }
+  if (decision !== 'approved' && decision !== 'rejected') {
+    throw new Error('Invalid decision');
+  }
+  const rpc = decision === 'approved' ? 'approve_mapping_submission' : 'reject_mapping_submission';
+  const body =
+    decision === 'approved'
+      ? { p_submission_id: submissionId, p_review_note: note || null }
+      : { p_submission_id: submissionId, p_review_note: note || 'Rejected by reviewer' };
+
+  const response = await authedFetch(`/rest/v1/rpc/${rpc}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(
+      response.status === 401 || response.status === 403
+        ? 'Reviewer access required'
+        : `Review failed: ${text || response.status}`
+    );
+  }
+  return { ok: true };
 }
 
 async function syncProfileToCloud(profile, session) {

@@ -90,6 +90,10 @@ AAM.CONSTANTS = {
     SIGN_IN: 'aam:sign_in',
     SIGN_OUT: 'aam:sign_out',
     GET_AUTH_STATE: 'aam:get_auth_state',
+    ADMIN_LIST_REQUESTS: 'aam:admin_list_requests',
+    ADMIN_SET_REQUEST_STATUS: 'aam:admin_set_request_status',
+    ADMIN_LIST_PENDING_MAPPINGS: 'aam:admin_list_pending_mappings',
+    ADMIN_REVIEW_MAPPING: 'aam:admin_review_mapping',
   },
 };
 

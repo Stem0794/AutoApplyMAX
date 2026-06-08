@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
 let _currentProfile = {};
 let _authState = { signedIn: false };
 
-
 // ── Tab Navigation ──────────────────────────────────
 
 function initTabs() {
@@ -47,6 +46,9 @@ function initTabs() {
       }
       if (tab.dataset.tab === 'account') {
         loadAccount();
+      }
+      if (tab.dataset.tab === 'admin') {
+        loadAdmin();
       }
     });
   });
@@ -178,7 +180,9 @@ async function saveProfile() {
   try {
     await AAM.Storage.saveProfile(profile);
     _currentProfile = profile;
-    const msg = _authState.signedIn ? 'Profile saved and synced to your account!' : 'Profile saved successfully!';
+    const msg = _authState.signedIn
+      ? 'Profile saved and synced to your account!'
+      : 'Profile saved successfully!';
     showStatus(msg, 'success');
   } catch (err) {
     showStatus('Failed to save profile: ' + err.message, 'error');
@@ -222,7 +226,8 @@ async function loadMappings() {
     const sites = Object.keys(mappings);
 
     if (sites.length === 0) {
-      container.innerHTML = '<p class="empty-state">No learned mappings yet. Mappings are created automatically when you manually fill fields on job application pages.</p>';
+      container.innerHTML =
+        '<p class="empty-state">No learned mappings yet. Mappings are created automatically when you manually fill fields on job application pages.</p>';
       return;
     }
 
@@ -384,10 +389,11 @@ function filterHistory(query) {
     renderHistoryTable(_allJobs);
     return;
   }
-  const filtered = _allJobs.filter(j =>
-    (j.jobTitle || '').toLowerCase().includes(q) ||
-    (j.company || '').toLowerCase().includes(q) ||
-    (j.ats || '').toLowerCase().includes(q)
+  const filtered = _allJobs.filter(
+    j =>
+      (j.jobTitle || '').toLowerCase().includes(q) ||
+      (j.company || '').toLowerCase().includes(q) ||
+      (j.ats || '').toLowerCase().includes(q)
   );
   renderHistoryTable(filtered);
 }
@@ -431,8 +437,11 @@ function formatDate(isoString) {
   if (!isoString) return '-';
   try {
     const d = new Date(isoString);
-    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
-      ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return (
+      d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
+      ' ' +
+      d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    );
   } catch {
     return isoString;
   }
@@ -544,15 +553,27 @@ function initEventListeners() {
   });
   document.getElementById('btn-sign-out').addEventListener('click', handleSignOut);
 
+  // Admin tab
+  document.getElementById('btn-refresh-mappings').addEventListener('click', loadAdminMappings);
+  document.getElementById('btn-refresh-requests').addEventListener('click', loadAdminRequests);
+  document.getElementById('btn-copy-snippet').addEventListener('click', () => {
+    const code = document.getElementById('admin-snippet-code').textContent;
+    navigator.clipboard.writeText(code).then(
+      () => showStatus('Field definition copied to clipboard.', 'success'),
+      () => showStatus('Copy failed — select and copy manually.', 'error')
+    );
+  });
+
   // Status bar close
   document.getElementById('status-close').addEventListener('click', hideStatus);
   // File input change listener for resume file to update displayed name
   const resumeFileInput = document.getElementById('field-resumeFile');
   if (resumeFileInput) {
-    resumeFileInput.addEventListener('change', (e) => {
+    resumeFileInput.addEventListener('change', e => {
       const fileNameSpan = document.getElementById('file-name-resumeFile');
       if (fileNameSpan) {
-        fileNameSpan.textContent = e.target.files.length > 0 ? e.target.files[0].name : 'No file selected';
+        fileNameSpan.textContent =
+          e.target.files.length > 0 ? e.target.files[0].name : 'No file selected';
       }
     });
   }
@@ -588,6 +609,10 @@ function renderAccountState(state) {
     signedIn.classList.add('hidden');
     if (hint) hint.textContent = 'Profile is stored locally in your browser.';
   }
+
+  // Reveal the Admin tab only for reviewers.
+  const adminTab = document.getElementById('tab-admin');
+  if (adminTab) adminTab.hidden = !state?.isReviewer;
 }
 
 async function handleSignIn() {
@@ -598,7 +623,11 @@ async function handleSignIn() {
   btn.textContent = 'Signing in...';
 
   try {
-    const result = await chrome.runtime.sendMessage({ type: AAM.CONSTANTS.MSG.SIGN_IN, email, password });
+    const result = await chrome.runtime.sendMessage({
+      type: AAM.CONSTANTS.MSG.SIGN_IN,
+      email,
+      password,
+    });
     if (result?.error) throw new Error(result.error);
     _authState = { signedIn: true, email: result.email };
     document.getElementById('account-password').value = '';
@@ -621,7 +650,6 @@ async function handleSignOut() {
     await chrome.runtime.sendMessage({ type: AAM.CONSTANTS.MSG.SIGN_OUT });
     _authState = { signedIn: false };
     document.getElementById('account-email').value = '';
-    document.getElementById('account-otp').value = '';
     showStatus('Signed out.', 'success');
     renderAccountState(_authState);
   } catch (err) {
@@ -630,6 +658,200 @@ async function handleSignOut() {
     btn.disabled = false;
     btn.textContent = 'Sign out';
   }
+}
+
+// ── Admin: community review ──────────────────────────
+
+function loadAdmin() {
+  loadAdminMappings();
+  loadAdminRequests();
+}
+
+function parseSignatureLabel(signature) {
+  try {
+    const sig = JSON.parse(signature);
+    return { label: sig.label || '', name: sig.name || '', tag: sig.tag || 'input' };
+  } catch {
+    return { label: '', name: '', tag: 'input' };
+  }
+}
+
+async function loadAdminMappings() {
+  const container = document.getElementById('admin-mappings-content');
+  container.innerHTML = '<p class="empty-state">Loading…</p>';
+  try {
+    const groups = await chrome.runtime.sendMessage({
+      type: AAM.CONSTANTS.MSG.ADMIN_LIST_PENDING_MAPPINGS,
+    });
+    if (groups?.error) throw new Error(groups.error);
+    renderAdminMappings(groups || []);
+  } catch (err) {
+    container.innerHTML = `<p class="empty-state">${escapeText(err.message)}</p>`;
+  }
+}
+
+function renderAdminMappings(groups) {
+  const container = document.getElementById('admin-mappings-content');
+  if (!groups.length) {
+    container.innerHTML = '<p class="empty-state">No pending mappings. All caught up 🎉</p>';
+    return;
+  }
+  container.innerHTML = '';
+  for (const g of groups) {
+    const sig = parseSignatureLabel(g.fieldSignature);
+    const row = document.createElement('div');
+    row.className = 'admin-row';
+    row.innerHTML = `
+      <div class="admin-row-main">
+        <div class="admin-row-title">
+          ${escapeText(sig.label || sig.name || '(no label)')} → ${escapeText(g.profileKey)}
+          <span class="admin-count-badge">${g.submitterCount} user${g.submitterCount > 1 ? 's' : ''}</span>
+        </div>
+        <div class="admin-row-meta">
+          site <code>${escapeText(g.siteKey)}</code> · ${escapeText(sig.tag)}${sig.name ? ` <code>${escapeText(sig.name)}</code>` : ''}
+        </div>
+      </div>
+      <div class="admin-row-actions">
+        <button type="button" class="btn btn-approve">Approve</button>
+        <button type="button" class="btn btn-danger">Reject</button>
+      </div>
+    `;
+    row
+      .querySelector('.btn-approve')
+      .addEventListener('click', () => reviewMapping(g.submissionId, 'approved', row));
+    row.querySelector('.btn-danger').addEventListener('click', () => {
+      const note = prompt('Reason for rejecting this mapping?');
+      if (note === null) return;
+      reviewMapping(g.submissionId, 'rejected', row, note);
+    });
+    container.appendChild(row);
+  }
+}
+
+async function reviewMapping(submissionId, decision, row, note = '') {
+  const buttons = row.querySelectorAll('button');
+  buttons.forEach(b => (b.disabled = true));
+  try {
+    const res = await chrome.runtime.sendMessage({
+      type: AAM.CONSTANTS.MSG.ADMIN_REVIEW_MAPPING,
+      submissionId,
+      decision,
+      note,
+    });
+    if (res?.error) throw new Error(res.error);
+    row.style.opacity = '0.5';
+    showStatus(
+      decision === 'approved' ? 'Mapping approved and live.' : 'Mapping rejected.',
+      'success'
+    );
+    setTimeout(loadAdminMappings, 600);
+  } catch (err) {
+    buttons.forEach(b => (b.disabled = false));
+    showStatus(err.message, 'error');
+  }
+}
+
+async function loadAdminRequests() {
+  const container = document.getElementById('admin-requests-content');
+  container.innerHTML = '<p class="empty-state">Loading…</p>';
+  try {
+    const rows = await chrome.runtime.sendMessage({
+      type: AAM.CONSTANTS.MSG.ADMIN_LIST_REQUESTS,
+    });
+    if (rows?.error) throw new Error(rows.error);
+    renderAdminRequests(rows || []);
+  } catch (err) {
+    container.innerHTML = `<p class="empty-state">${escapeText(err.message)}</p>`;
+  }
+}
+
+function renderAdminRequests(rows) {
+  const container = document.getElementById('admin-requests-content');
+  if (!rows.length) {
+    container.innerHTML = '<p class="empty-state">No field requests yet.</p>';
+    return;
+  }
+  container.innerHTML = '';
+  for (const r of rows) {
+    const row = document.createElement('div');
+    row.className = 'admin-row';
+    row.innerHTML = `
+      <div class="admin-row-main">
+        <div class="admin-row-title">
+          ${escapeText(r.suggested_label)}
+          <span class="admin-status-badge admin-status-${escapeText(r.status)}">${escapeText(r.status)}</span>
+        </div>
+        <div class="admin-row-meta">
+          ${r.note ? escapeText(r.note) + ' · ' : ''}${r.host ? `<code>${escapeText(r.host)}</code>` : 'no host'}
+        </div>
+      </div>
+      <div class="admin-row-actions">
+        <button type="button" class="btn btn-approve">Promote</button>
+        <button type="button" class="btn btn-outline">Done</button>
+        <button type="button" class="btn btn-danger">Decline</button>
+      </div>
+    `;
+    const [promoteBtn, doneBtn, declineBtn] = row.querySelectorAll('button');
+    promoteBtn.addEventListener('click', () => promoteRequest(r));
+    doneBtn.addEventListener('click', () => setRequestStatus(r.id, 'done', row));
+    declineBtn.addEventListener('click', () => setRequestStatus(r.id, 'declined', row));
+    container.appendChild(row);
+  }
+}
+
+async function setRequestStatus(id, status, row) {
+  try {
+    const res = await chrome.runtime.sendMessage({
+      type: AAM.CONSTANTS.MSG.ADMIN_SET_REQUEST_STATUS,
+      id,
+      status,
+    });
+    if (res?.error) throw new Error(res.error);
+    showStatus(`Request marked ${status}.`, 'success');
+    if (row) setTimeout(loadAdminRequests, 400);
+  } catch (err) {
+    showStatus(err.message, 'error');
+  }
+}
+
+/** Generate a ready-to-paste PROFILE_FIELDS entry from a request label. */
+function buildFieldSnippet(label) {
+  const clean = label.trim().replace(/\s+/g, ' ');
+  const words = clean
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '')
+    .split(' ')
+    .filter(Boolean);
+  const key = words.length
+    ? words.map((w, i) => (i === 0 ? w : w[0].toUpperCase() + w.slice(1))).join('')
+    : 'newField';
+  const esc = s => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const keywords = [...new Set([clean.toLowerCase(), ...words])].map(k => `'${esc(k)}'`);
+  const aliasSrc = words.length ? words.join('[\\\\s_-]?') : esc(key);
+  return `  {
+    key: '${esc(key)}',
+    label: '${esc(clean)}',
+    type: 'text',
+    group: 'additional',
+    keywords: [${keywords.join(', ')}],
+    aliases: [/${aliasSrc}/i],
+  },`;
+}
+
+async function promoteRequest(request) {
+  const snippet = buildFieldSnippet(request.suggested_label);
+  document.getElementById('admin-snippet-code').textContent = snippet;
+  document.getElementById('admin-snippet').classList.remove('hidden');
+  document.getElementById('admin-snippet').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Mark the request as planned so it leaves the open queue.
+  await setRequestStatus(request.id, 'planned');
+  setTimeout(loadAdminRequests, 400);
+}
+
+function escapeText(value) {
+  const el = document.createElement('div');
+  el.textContent = String(value == null ? '' : value);
+  return el.innerHTML;
 }
 
 // ── Utilities ───────────────────────────────────────
