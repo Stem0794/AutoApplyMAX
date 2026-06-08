@@ -144,4 +144,34 @@ AAM.getSupportedATS = function (urlValue) {
   return null;
 };
 
+/**
+ * Catalog of platforms AutoApplyMAX has an adapter for, in display order.
+ * `key` matches an ATS_HOSTS entry; `hosts` are user-facing domain hints.
+ * Live vs. adapter-ready status is derived at render time from the manifest's
+ * content_scripts matches (see the options-page Platforms tab), so this list
+ * stays the single source of truth for names and domains.
+ */
+AAM.SUPPORTED_PLATFORMS = [
+  { key: 'LINKEDIN', name: 'LinkedIn (Easy Apply)', hosts: ['linkedin.com'] },
+  { key: 'GREENHOUSE', name: 'Greenhouse', hosts: ['boards.greenhouse.io', 'jobs.greenhouse.io'] },
+  { key: 'LEVER', name: 'Lever', hosts: ['jobs.lever.co'] },
+  { key: 'WORKDAY', name: 'Workday', hosts: ['myworkdayjobs.com', 'workday.com'] },
+  { key: 'HIREHIVE', name: 'HireHive', hosts: ['hirehive.com'] },
+  { key: 'ZOHO', name: 'Zoho Recruit', hosts: ['zohorecruit.com', 'zohorecruit.eu'] },
+  { key: 'REVOLUT', name: 'Revolut Careers', hosts: ['revolut.com/careers'] },
+  { key: 'WORKABLE', name: 'Workable', hosts: ['apply.workable.com'] },
+  { key: 'MAINDER', name: 'Mainder', hosts: ['mainder.ai'] },
+  { key: 'ASHBY', name: 'Ashby', hosts: ['ashbyhq.com'] },
+  { key: 'SMARTRECRUITERS', name: 'SmartRecruiters', hosts: ['smartrecruiters.com'] },
+  { key: 'ICIMS', name: 'iCIMS', hosts: ['icims.com'] },
+  { key: 'SUCCESSFACTORS', name: 'SAP SuccessFactors', hosts: ['successfactors.com', 'successfactors.eu'] },
+  { key: 'TALEO', name: 'Oracle Taleo', hosts: ['taleo.net'] },
+  { key: 'RECRUITEE', name: 'Recruitee', hosts: ['recruitee.com'] },
+  { key: 'TEAMTAILOR', name: 'Teamtailor', hosts: ['teamtailor.com'] },
+  { key: 'JAZZHR', name: 'JazzHR', hosts: ['applytojob.com'] },
+  { key: 'BREEZY', name: 'Breezy HR', hosts: ['breezy.hr'] },
+  { key: 'JOBVITE', name: 'Jobvite', hosts: ['jobvite.com'] },
+  { key: 'BAMBOOHR', name: 'BambooHR', hosts: ['bamboohr.com'] },
+];
+
 globalThis.AAM = AAM;
