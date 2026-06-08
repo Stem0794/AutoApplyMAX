@@ -220,6 +220,34 @@ describe('public-release security boundaries', () => {
     expect((window as any).csvEscape('@SUM(1,2)')).toContain("'@SUM");
   });
 
+  it('reveals the admin tab immediately when a reviewer signs in', async () => {
+    document.body.innerHTML = `
+      <input id="account-email" value="reviewer@example.com">
+      <input id="account-password" value="secret">
+      <button id="btn-sign-in">Sign in</button>
+      <div id="account-signed-out"></div>
+      <div id="account-signed-in" class="hidden"></div>
+      <span id="account-email-display"></span>
+      <span id="save-hint"></span>
+      <button id="tab-admin" hidden>Admin</button>
+      <div id="status-bar" class="hidden"></div>
+      <span id="status-text"></span>
+    `;
+    const sendMessage = (globalThis as any).chrome.runtime.sendMessage as ReturnType<typeof vi.fn>;
+    sendMessage.mockResolvedValue({
+      signedIn: true,
+      email: 'reviewer@example.com',
+      userId: 'reviewer-id',
+      isReviewer: true,
+    });
+    load('src/options/options.js');
+    (window as any).loadProfile = vi.fn();
+
+    await (window as any).handleSignIn();
+
+    expect((document.getElementById('tab-admin') as HTMLButtonElement).hidden).toBe(false);
+  });
+
   it('accepts community mapping submissions including sensitive fields, rejects only resume/CV and unknown keys', () => {
     const installationId = 'c8b22106-f267-4c74-b8b4-63131f91781f';
     const sig = (overrides: object) =>

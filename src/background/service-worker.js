@@ -878,7 +878,8 @@ async function signInWithPassword(email, password) {
     throw new Error(err.error_description || err.msg || 'Invalid email or password');
   }
   const raw = await response.json();
-  return persistUserSession(raw);
+  await persistUserSession(raw);
+  return getAuthState();
 }
 
 async function signOut() {

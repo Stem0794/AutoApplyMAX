@@ -633,7 +633,7 @@ async function handleSignIn() {
       password,
     });
     if (result?.error) throw new Error(result.error);
-    _authState = { signedIn: true, email: result.email };
+    _authState = result;
     document.getElementById('account-password').value = '';
     showStatus('Signed in! Your profile is now syncing.', 'success');
     renderAccountState(_authState);
