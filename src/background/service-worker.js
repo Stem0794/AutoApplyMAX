@@ -674,7 +674,14 @@ const CLOUD_SYNC_FIELDS = new Set([
   'privacyPolicyConsent', 'coverLetter',
 ]);
 
+function requireApiUrl() {
+  if (!AAM.CONSTANTS.COMMUNITY_API_URL) {
+    throw new Error('Extension is not configured — please reinstall the latest version');
+  }
+}
+
 async function sendMagicLink(email) {
+  requireApiUrl();
   if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
     throw new Error('Invalid email address');
   }
