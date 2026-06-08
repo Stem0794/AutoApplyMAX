@@ -47,13 +47,14 @@ AAM.CONSTANTS = {
     MAINDER: ['mainder.ai'],
   },
 
-  // Set at build/release time. Clients only call authenticated Edge Functions.
   COMMUNITY_API_URL:
-    typeof AAM_COMMUNITY_API_URL !== 'undefined' ? AAM_COMMUNITY_API_URL : '',
+    typeof AAM_COMMUNITY_API_URL !== 'undefined'
+      ? AAM_COMMUNITY_API_URL
+      : 'https://arsfogdvglyiwqiujnof.supabase.co',
   COMMUNITY_PUBLISHABLE_KEY:
     typeof AAM_COMMUNITY_PUBLISHABLE_KEY !== 'undefined'
       ? AAM_COMMUNITY_PUBLISHABLE_KEY
-      : '',
+      : 'sb_publishable_gzQYp8xDiox-yyusd67EEQ_MN5D8y3M',
 
   // Message types for background ↔ content communication
   MSG: {
