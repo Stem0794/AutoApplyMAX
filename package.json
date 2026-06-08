@@ -22,7 +22,7 @@
     "@playwright/test": "^1.55.0",
     "@types/chrome": "^0.0.326",
     "@types/node": "^24.0.0",
-    "esbuild": "^0.25.0",
+    "esbuild": "0.28.0",
     "eslint": "^9.0.0",
     "globals": "^16.0.0",
     "jsdom": "^26.0.0",
