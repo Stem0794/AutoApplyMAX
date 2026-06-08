@@ -106,6 +106,10 @@ AAM.registerAdapter = function (adapter) {
   AAM.Adapters.push(adapter);
 };
 
+AAM.hostMatches = function (allowedHost, allowSubdomains = true) {
+  return AAM.isExactOrSubdomain(window.location.hostname, allowedHost, allowSubdomains);
+};
+
 /**
  * Find the best adapter for the current page.
  * @returns {object} - the matching adapter or a generic fallback

@@ -306,6 +306,23 @@ AAM.FieldDetector = {
     return path.join(' > ');
   },
 
+  buildSignature(field) {
+    const normalize = value => String(value || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[^\p{L}\p{N} @.+_-]/gu, '')
+      .trim()
+      .slice(0, 120);
+    return JSON.stringify({
+      v: 1,
+      tag: field.tagName.toLowerCase(),
+      type: normalize(field.getAttribute('type')),
+      autocomplete: normalize(field.getAttribute('autocomplete')),
+      name: normalize(field.getAttribute('name')),
+      label: normalize(this.getDisplayLabel(field)),
+    });
+  },
+
   /**
    * Detect all form fields and return a mapping of each field to its
    * best-matching profile key + confidence score.
@@ -313,22 +330,26 @@ AAM.FieldDetector = {
    * @param {object} [siteMappings] - previously learned mappings for this site
    * @returns {Array<{element: HTMLElement, selector: string, profileKey: string|null, confidence: number, context: string}>}
    */
-  detectFields(siteMappings = {}) {
+  detectFields(siteMappings = {}, knownMappings = []) {
     const fields = this.getFormFields();
     const results = [];
+    const localMappings = siteMappings.localMappings || {};
+    const communityMappings = siteMappings.communityMappings || {};
 
     for (const field of fields) {
       const selector = this.buildSelector(field);
+      const signature = this.buildSignature(field);
       const context = this.getFieldContext(field);
       const displayLabel = this.getDisplayLabel(field);
 
-      // Check learned mappings first
-      if (siteMappings[selector]) {
+      const localMapping = localMappings[selector];
+      if (localMapping && AAM.isProfileKey(localMapping.profileKey)) {
         results.push({
           element: field,
           selector,
-          profileKey: siteMappings[selector],
-          confidence: 1.0, // learned mapping = full confidence
+          signature,
+          profileKey: localMapping.profileKey,
+          confidence: 1.0,
           context,
           displayLabel,
           source: 'learned',
@@ -336,7 +357,27 @@ AAM.FieldDetector = {
         continue;
       }
 
-      // Heuristic matching
+      const knownMapping = knownMappings.find(mapping => {
+        try {
+          return AAM.isProfileKey(mapping.profileKey) && field.matches(mapping.selector);
+        } catch {
+          return false;
+        }
+      });
+      if (knownMapping) {
+        results.push({
+          element: field,
+          selector,
+          signature,
+          profileKey: knownMapping.profileKey,
+          confidence: 0.95,
+          context,
+          displayLabel,
+          source: 'adapter',
+        });
+        continue;
+      }
+
       let bestKey = null;
       let bestScore = 0;
 
@@ -348,6 +389,16 @@ AAM.FieldDetector = {
         }
       }
 
+      const communityMapping = communityMappings[signature];
+      if (communityMapping && AAM.isCloudMappableProfileKey(communityMapping.profileKey)) {
+        const communityDefinition = AAM.PROFILE_MAP[communityMapping.profileKey];
+        const semanticScore = this.scoreMatch(context, communityDefinition, field);
+        if (semanticScore >= AAM.CONSTANTS.CONFIDENCE_LOW) {
+          bestKey = communityMapping.profileKey;
+          bestScore = Math.max(semanticScore, 0.75);
+        }
+      }
+
       if (bestScore >= AAM.CONSTANTS.CONFIDENCE_LOW) {
         console.log(`[AutoApplyMAX] Match: ${bestKey} (${Math.round(bestScore * 100)}%) for selector: ${selector}`);
         console.debug(`  Context: "${context}"`);
@@ -356,11 +407,14 @@ AAM.FieldDetector = {
       results.push({
         element: field,
         selector,
+        signature,
         profileKey: bestScore >= AAM.CONSTANTS.CONFIDENCE_LOW ? bestKey : null,
         confidence: bestScore,
         context,
         displayLabel,
-        source: bestScore >= AAM.CONSTANTS.CONFIDENCE_LOW ? 'heuristic' : 'unmatched',
+        source: communityMapping && bestKey === communityMapping.profileKey
+          ? 'community'
+          : (bestScore >= AAM.CONSTANTS.CONFIDENCE_LOW ? 'heuristic' : 'unmatched'),
       });
     }
 

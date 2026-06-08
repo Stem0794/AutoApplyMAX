@@ -17,6 +17,10 @@ AAM.Autofill = {
     // Listen for messages from the popup/background
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (msg.type === AAM.CONSTANTS.MSG.TRIGGER_AUTOFILL) {
+        if (msg.expectedOrigin !== window.location.origin || !msg.requestId) {
+          sendResponse({ error: 'Autofill request does not match this document' });
+          return false;
+        }
         this.run().then(result => {
           sendResponse(result);
         }).catch(err => {
@@ -145,21 +149,14 @@ AAM.Autofill = {
       const siteKey = adapter.getSiteKey();
       const siteMappings = await AAM.Storage.getSiteMappings(siteKey);
 
-      // 5. Merge adapter known mappings into site mappings
+      // 5. Adapter mappings are matched against elements, not selector strings.
       const knownMappings = adapter.getKnownMappings();
-      const mergedMappings = { ...siteMappings };
-      for (const km of knownMappings) {
-        // Don't override learned mappings
-        if (!mergedMappings[km.selector]) {
-          mergedMappings[km.selector] = km.profileKey;
-        }
-      }
 
       // 6. Get settings
       const settings = await AAM.Storage.getSettings();
 
       // 7. Detect form fields using heuristics + learned mappings
-      const detectedFields = AAM.FieldDetector.detectFields(mergedMappings);
+      const detectedFields = AAM.FieldDetector.detectFields(siteMappings, knownMappings);
       console.log(`[AutoApplyMAX] Detected ${detectedFields.length} form fields`);
 
       // 8. Fill the fields

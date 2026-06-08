@@ -104,20 +104,14 @@
             <span class="toggle"></span>
           </label>
 
-          <div class="setting-group-header">
-            <h3>Cloud Sync (Supabase)</h3>
-            <p>Sync your learned mappings to share them with other users.</p>
-          </div>
-
-          <div class="form-group full-width">
-            <label for="setting-supabase-url">Supabase URL</label>
-            <input type="text" id="setting-supabase-url" placeholder="https://xyz.supabase.co">
-          </div>
-
-          <div class="form-group full-width">
-            <label for="setting-supabase-key">Supabase Anon Key</label>
-            <input type="password" id="setting-supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
-          </div>
+          <label class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Contribute normalized field mappings</span>
+              <span class="setting-desc">Send non-sensitive field signatures for manual community review. Raw selectors and profile values are never sent.</span>
+            </div>
+            <input type="checkbox" id="setting-share-mappings">
+            <span class="toggle"></span>
+          </label>
         </div>
       </div>
 
@@ -127,7 +121,7 @@
           <div class="panel-header-row">
             <div>
               <h2>Application History</h2>
-              <p>Every job application you submit is automatically logged here.</p>
+              <p>Trusted submission events are logged as pending until you confirm success.</p>
             </div>
             <div class="panel-header-actions">
               <span id="history-count" class="history-count"></span>
@@ -142,6 +136,7 @@
         <div id="history-content">
           <p class="empty-state">Loading...</p>
         </div>
+        <div id="history-pagination" class="mappings-actions"></div>
         <div class="mappings-actions">
           <button type="button" id="btn-clear-history" class="btn btn-danger">Clear All History</button>
         </div>
@@ -157,7 +152,6 @@
           <p class="empty-state">Loading...</p>
         </div>
         <div class="mappings-actions">
-          <button type="button" id="btn-sync-mappings" class="btn btn-primary">Sync with Cloud</button>
           <button type="button" id="btn-clear-mappings" class="btn btn-danger">Clear All Mappings</button>
         </div>
       </div>
@@ -175,7 +169,6 @@
 
   <script src="../shared/constants.js"></script>
   <script src="../shared/profile-schema.js"></script>
-  <script src="../shared/supabase.js"></script>
   <script src="../shared/storage.js"></script>
   <script src="options.js"></script>
 </body>

@@ -9,7 +9,7 @@
  *   aliases    – additional regex patterns for fuzzy matching
  *   group      – UI grouping on the options page
  */
-var AAM = window.AAM || {};
+var AAM = globalThis.AAM || {};
 
 AAM.PROFILE_FIELDS = [
   // ── Personal ──────────────────────────────────────
@@ -142,22 +142,6 @@ AAM.PROFILE_FIELDS = [
     group: 'professional',
     keywords: ['resume', 'cv', 'resume file', 'cv file', 'upload resume', 'upload cv'],
     aliases: [/resum[eé]/i, /curriculum[\s_-]?vitae/i, /\bcv\b/i, /upload[\s_-]?resume/i, /upload[\s_-]?cv/i],
-  },
-  {
-    key: 'resumeFileName',
-    label: 'Resume / CV Filename',
-    type: 'text', // This will be hidden and just store the name
-    group: 'professional',
-    keywords: [],
-    aliases: [],
-  },
-  {
-    key: 'resumeFileContent',
-    label: 'Resume / CV Content (Base64)',
-    type: 'textarea', // Hidden field to store Base64 encoded file
-    group: 'professional',
-    keywords: [],
-    aliases: [],
   },
   {
     key: 'currentTitle',
@@ -309,8 +293,37 @@ AAM.PROFILE_FIELDS = [
 
 // Build a quick-lookup map
 AAM.PROFILE_MAP = {};
+AAM.SENSITIVE_PROFILE_KEYS = new Set([
+  'salaryExpectation',
+  'privacyPolicyConsent',
+  'gender',
+  'ethnicity',
+  'veteranStatus',
+  'disabilityStatus',
+]);
+AAM.NON_CLOUD_PROFILE_KEYS = new Set([
+  ...AAM.SENSITIVE_PROFILE_KEYS,
+  'resumeFile',
+  'coverLetter',
+]);
 AAM.PROFILE_FIELDS.forEach(f => {
+  f.sensitivity = f.key === 'resumeFile'
+    ? 'document'
+    : (AAM.SENSITIVE_PROFILE_KEYS.has(f.key) ? 'sensitive' : 'standard');
+  f.autofillable = f.key !== 'privacyPolicyConsent';
+  f.cloudMappable = !AAM.NON_CLOUD_PROFILE_KEYS.has(f.key);
+  f.requiresConfirmation = f.sensitivity !== 'standard';
+  f.maxLength = f.type === 'textarea' ? 10000 : 500;
   AAM.PROFILE_MAP[f.key] = f;
 });
 
-window.AAM = AAM;
+AAM.isProfileKey = function (key) {
+  return typeof key === 'string' && Boolean(AAM.PROFILE_MAP[key]);
+};
+
+AAM.isCloudMappableProfileKey = function (key) {
+  const field = AAM.PROFILE_MAP[key];
+  return Boolean(field && field.cloudMappable);
+};
+
+globalThis.AAM = AAM;

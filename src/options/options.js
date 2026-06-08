@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initEventListeners();
 });
 
+let _currentProfile = {};
+
 // ── Tab Navigation ──────────────────────────────────
 
 function initTabs() {
@@ -87,20 +89,6 @@ function buildFormFields() {
         div.appendChild(input);
         div.appendChild(fileNameSpan);
 
-        // Hidden input for storing filename
-        const hiddenFileNameInput = document.createElement('input');
-        hiddenFileNameInput.type = 'hidden';
-        hiddenFileNameInput.id = `field-${field.key}Name`;
-        hiddenFileNameInput.name = `${field.key}Name`;
-        div.appendChild(hiddenFileNameInput);
-
-        // Hidden textarea for storing Base64 content
-        const hiddenFileContentInput = document.createElement('textarea');
-        hiddenFileContentInput.style.display = 'none';
-        hiddenFileContentInput.id = `field-${field.key}Content`;
-        hiddenFileContentInput.name = `${field.key}Content`;
-        div.appendChild(hiddenFileContentInput);
-
         // Don't add default placeholder for file input
         input.placeholder = '';
       } else {
@@ -125,34 +113,18 @@ function buildFormFields() {
 async function loadProfile() {
   try {
     const profile = await AAM.Storage.getProfile();
+    _currentProfile = profile;
     for (const [key, value] of Object.entries(profile)) {
       const input = document.querySelector(`[name="${key}"]`);
-      // Also get the hidden fields for file name and content
-      const hiddenInput = document.querySelector(`[name="${key}"]`);
       if (input) {
         // For regular inputs, or the file input itself
         if (value) {
           input.value = value;
         }
-      } else if (hiddenInput) {
-        // For hidden inputs (like resumeFileName, resumeFileContent)
-        if (value) {
-          hiddenInput.value = value;
-        }
       }
-
-      // Special handling for file inputs to display file name
-      // This is for the span that visually shows the filename, not the hidden input
-      const fieldDef = AAM.PROFILE_MAP[key.replace('Name', '').replace('Content', '')]; // Adjust key to get original fieldDef
-      if (fieldDef && fieldDef.type === 'file' && key.endsWith('Name')) {
-        const fileKey = key.replace('Name', ''); // e.g., resumeFileName -> resumeFile
-        const fileNameSpan = document.getElementById(`file-name-${fileKey}`);
-        if (fileNameSpan) {
-          fileNameSpan.textContent = value;
-        }
-      }
-
     }
+    const resumeName = document.getElementById('file-name-resumeFile');
+    if (resumeName) resumeName.textContent = profile.resumeAsset?.name || 'No file selected';
   } catch (err) {
     showStatus('Failed to load profile: ' + err.message, 'error');
   }
@@ -165,22 +137,19 @@ async function saveProfile() {
   for (const fieldDef of AAM.PROFILE_FIELDS) {
     if (fieldDef.type === 'file') {
       const fileInput = form.querySelector(`[name="${fieldDef.key}"]`); // The <input type="file">
-      const hiddenFileNameInput = form.querySelector(`[name="${fieldDef.key}Name"]`);
-      const hiddenFileContentInput = form.querySelector(`[name="${fieldDef.key}Content"]`);
-
       if (fileInput && fileInput.files.length > 0) {
-        // New file selected
         const file = fileInput.files[0];
-        profile[fieldDef.key + 'Name'] = file.name;
-        profile[fieldDef.key + 'Content'] = await fileToBase64(file);
-      } else {
-        // No new file selected, retain existing if any
-        if (hiddenFileNameInput && hiddenFileNameInput.value) {
-          profile[fieldDef.key + 'Name'] = hiddenFileNameInput.value;
-        }
-        if (hiddenFileContentInput && hiddenFileContentInput.value) {
-          profile[fieldDef.key + 'Content'] = hiddenFileContentInput.value;
-        }
+        validateResume(file);
+        const response = await chrome.runtime.sendMessage({
+          type: AAM.CONSTANTS.MSG.SAVE_RESUME,
+          name: file.name,
+          mime: file.type || 'application/octet-stream',
+          bytes: await file.arrayBuffer(),
+        });
+        if (response?.error) throw new Error(response.error);
+        profile.resumeAsset = response;
+      } else if (_currentProfile.resumeAsset) {
+        profile.resumeAsset = _currentProfile.resumeAsset;
       }
     } else {
       const input = form.querySelector(`[name="${fieldDef.key}"]`);
@@ -202,6 +171,7 @@ async function saveProfile() {
 
   try {
     await AAM.Storage.saveProfile(profile);
+    _currentProfile = profile;
     showStatus('Profile saved successfully!', 'success');
   } catch (err) {
     showStatus('Failed to save profile: ' + err.message, 'error');
@@ -216,12 +186,7 @@ async function loadSettings() {
     document.getElementById('setting-highlight').checked = settings.highlightFilled !== false;
     document.getElementById('setting-overlay').checked = settings.showOverlay !== false;
     document.getElementById('setting-proactive').checked = settings.showProactiveTrigger !== false;
-    document.getElementById('setting-supabase-url').value = settings.supabaseUrl || '';
-    document.getElementById('setting-supabase-key').value = settings.supabaseKey || '';
-
-    // Update constants with loaded values
-    if (settings.supabaseUrl) AAM.CONSTANTS.SUPABASE_URL = settings.supabaseUrl;
-    if (settings.supabaseKey) AAM.CONSTANTS.SUPABASE_KEY = settings.supabaseKey;
+    document.getElementById('setting-share-mappings').checked = settings.shareMappings === true;
   } catch (err) {
     console.warn('Failed to load settings:', err);
   }
@@ -232,13 +197,8 @@ async function saveSettings() {
     highlightFilled: document.getElementById('setting-highlight').checked,
     showOverlay: document.getElementById('setting-overlay').checked,
     showProactiveTrigger: document.getElementById('setting-proactive').checked,
-    supabaseUrl: document.getElementById('setting-supabase-url').value.trim(),
-    supabaseKey: document.getElementById('setting-supabase-key').value.trim(),
+    shareMappings: document.getElementById('setting-share-mappings').checked,
   };
-
-  // Update constants immediately
-  AAM.CONSTANTS.SUPABASE_URL = settings.supabaseUrl;
-  AAM.CONSTANTS.SUPABASE_KEY = settings.supabaseKey;
 
   try {
     await AAM.Storage.saveSettings(settings);
@@ -286,50 +246,11 @@ async function loadMappings() {
   }
 }
 
-async function syncLocalToSupabase() {
-  const btn = document.getElementById('btn-sync-mappings');
-  const originalText = btn.textContent;
-
-  try {
-    btn.disabled = true;
-    btn.textContent = 'Syncing...';
-
-    // Ensure config is loaded
-    await AAM.Storage._ensureSupabaseConfig();
-
-    const mappings = await AAM.Storage.getMappings();
-    const bulkData = [];
-
-    for (const [siteKey, siteFields] of Object.entries(mappings)) {
-      for (const [selector, profileKey] of Object.entries(siteFields)) {
-        bulkData.push({ siteKey, selector, profileKey });
-      }
-    }
-
-    if (bulkData.length === 0) {
-      showStatus('No local mappings to sync.', 'info');
-      return;
-    }
-
-    const result = await AAM.Supabase.saveMappingsBulk(bulkData);
-    if (result) {
-      showStatus(`Successfully synced ${bulkData.length} mappings to the cloud!`, 'success');
-    } else {
-      throw new Error('Supabase request returned no result.');
-    }
-  } catch (err) {
-    showStatus('Sync failed: ' + err.message, 'error');
-    console.error('[AutoApplyMAX] Sync error:', err);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }
-}
-
 // ── Application History ─────────────────────────────
 
 /** @type {Array} cached full list of applied jobs */
 let _allJobs = [];
+let _historyPage = 1;
 
 async function loadHistory() {
   const container = document.getElementById('history-content');
@@ -337,6 +258,7 @@ async function loadHistory() {
   try {
     _allJobs = await AAM.Storage.getAppliedJobs();
     countEl.textContent = _allJobs.length + ' application' + (_allJobs.length !== 1 ? 's' : '');
+    _historyPage = 1;
     renderHistoryTable(_allJobs);
   } catch (err) {
     container.innerHTML = `<p class="empty-state">Error loading history: ${escapeHtml(err.message)}</p>`;
@@ -351,11 +273,15 @@ function renderHistoryTable(jobs) {
     container.innerHTML = `
       <div class="history-empty">
         <div class="history-empty-icon">&#128203;</div>
-        <p>No applications logged yet.<br>Applications are recorded automatically when you submit job forms.</p>
+        <p>No submissions logged yet.<br>Trusted form submissions appear here as pending.</p>
       </div>`;
     return;
   }
 
+  const totalPages = Math.max(1, Math.ceil(jobs.length / AAM.CONSTANTS.HISTORY_PAGE_SIZE));
+  _historyPage = Math.min(_historyPage, totalPages);
+  const start = (_historyPage - 1) * AAM.CONSTANTS.HISTORY_PAGE_SIZE;
+  const pageJobs = jobs.slice(start, start + AAM.CONSTANTS.HISTORY_PAGE_SIZE);
   let html = `
     <table class="history-table">
       <thead>
@@ -364,18 +290,21 @@ function renderHistoryTable(jobs) {
           <th class="col-company">Company</th>
           <th class="col-title">Job Title</th>
           <th class="col-ats">ATS</th>
+          <th>Status</th>
           <th class="col-link">Link</th>
           <th class="col-actions"></th>
         </tr>
       </thead>
       <tbody>`;
 
-  jobs.forEach((job, idx) => {
+  pageJobs.forEach(job => {
     const date = formatDate(job.timestamp);
     const company = escapeHtml(job.company || 'Unknown');
     const title = escapeHtml(job.jobTitle || 'Unknown');
     const ats = escapeHtml(job.ats || '');
-    const url = escapeHtml(job.url || '');
+    const safeUrl = toSafeHttpUrl(job.url);
+    const url = escapeHtml(safeUrl);
+    const status = job.status === 'confirmed' ? 'Confirmed' : 'Pending';
     // We need to find the real index in _allJobs (in case of filtering)
     const realIdx = _allJobs.indexOf(job);
 
@@ -385,6 +314,7 @@ function renderHistoryTable(jobs) {
         <td class="col-company">${company}</td>
         <td class="col-title">${title}</td>
         <td class="col-ats"><span class="ats-badge">${ats}</span></td>
+        <td>${status}${job.status === 'confirmed' ? '' : ` <button class="btn-confirm-row" data-idx="${realIdx}">Confirm</button>`}</td>
         <td class="col-link">${url ? `<a href="${url}" target="_blank" rel="noopener" class="history-link">Open</a>` : '-'}</td>
         <td class="col-actions"><button class="btn-delete-row" data-idx="${realIdx}" title="Remove entry">&times;</button></td>
       </tr>`;
@@ -392,6 +322,7 @@ function renderHistoryTable(jobs) {
 
   html += '</tbody></table>';
   container.innerHTML = html;
+  renderHistoryPagination(totalPages, jobs);
 
   // Attach delete handlers
   container.querySelectorAll('.btn-delete-row').forEach(btn => {
@@ -402,6 +333,44 @@ function renderHistoryTable(jobs) {
       loadHistory();
     });
   });
+  container.querySelectorAll('.btn-confirm-row').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      if (isNaN(idx)) return;
+      await AAM.Storage.confirmAppliedJob(idx);
+      loadHistory();
+    });
+  });
+}
+
+function renderHistoryPagination(totalPages, jobs) {
+  const pagination = document.getElementById('history-pagination');
+  if (!pagination || totalPages <= 1) {
+    if (pagination) pagination.textContent = '';
+    return;
+  }
+  pagination.textContent = '';
+  const previous = document.createElement('button');
+  previous.type = 'button';
+  previous.className = 'btn btn-outline';
+  previous.textContent = 'Previous';
+  previous.disabled = _historyPage === 1;
+  previous.addEventListener('click', () => {
+    _historyPage--;
+    renderHistoryTable(jobs);
+  });
+  const label = document.createElement('span');
+  label.textContent = `Page ${_historyPage} of ${totalPages}`;
+  const next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'btn btn-outline';
+  next.textContent = 'Next';
+  next.disabled = _historyPage === totalPages;
+  next.addEventListener('click', () => {
+    _historyPage++;
+    renderHistoryTable(jobs);
+  });
+  pagination.append(previous, label, next);
 }
 
 function filterHistory(query) {
@@ -445,10 +414,12 @@ function exportHistoryCSV() {
 }
 
 function csvEscape(val) {
-  if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-    return '"' + val.replace(/"/g, '""') + '"';
+  let safe = String(val);
+  if (/^[=+\-@\t\r]/.test(safe)) safe = "'" + safe;
+  if (safe.includes(',') || safe.includes('"') || safe.includes('\n')) {
+    return '"' + safe.replace(/"/g, '""') + '"';
   }
-  return val;
+  return safe;
 }
 
 function formatDate(isoString) {
@@ -489,10 +460,11 @@ async function handleImportFile(e) {
   if (!file) return;
 
   try {
+    if (file.size > AAM.CONSTANTS.MAX_IMPORT_BYTES) throw new Error('Profile file exceeds 1 MB');
     const text = await file.text();
     const profile = JSON.parse(text);
 
-    if (typeof profile !== 'object' || Array.isArray(profile)) {
+    if (!profile || typeof profile !== 'object' || Array.isArray(profile)) {
       throw new Error('Invalid profile format');
     }
 
@@ -525,8 +497,7 @@ function initEventListeners() {
   document.getElementById('setting-highlight').addEventListener('change', saveSettings);
   document.getElementById('setting-overlay').addEventListener('change', saveSettings);
   document.getElementById('setting-proactive').addEventListener('change', saveSettings);
-  document.getElementById('setting-supabase-url').addEventListener('change', saveSettings);
-  document.getElementById('setting-supabase-key').addEventListener('change', saveSettings);
+  document.getElementById('setting-share-mappings').addEventListener('change', saveSettings);
 
   // History: search filter
   document.getElementById('history-search').addEventListener('input', e => {
@@ -553,7 +524,7 @@ function initEventListeners() {
   document.getElementById('btn-clear-mappings').addEventListener('click', async () => {
     if (confirm('Are you sure you want to clear all learned mappings?')) {
       try {
-        await AAM.Storage.set({ [AAM.CONSTANTS.STORAGE_MAPPINGS]: {} });
+        await AAM.Storage.clearMappings();
         loadMappings();
         showStatus('All mappings cleared.', 'success');
       } catch (err) {
@@ -561,12 +532,6 @@ function initEventListeners() {
       }
     }
   });
-
-  // Sync mappings
-  const syncBtn = document.getElementById('btn-sync-mappings');
-  if (syncBtn) {
-    syncBtn.addEventListener('click', syncLocalToSupabase);
-  }
 
   // Status bar close
   document.getElementById('status-close').addEventListener('click', hideStatus);
@@ -589,13 +554,18 @@ function initEventListeners() {
  * @param {File} file
  * @returns {Promise<String>} Base64 encoded string
  */
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
-  });
+function validateResume(file) {
+  if (file.size > AAM.CONSTANTS.MAX_RESUME_BYTES) throw new Error('Resume exceeds 5 MB');
+  if (!/\.(pdf|doc|docx)$/i.test(file.name)) throw new Error('Resume must be PDF, DOC, or DOCX');
+}
+
+function toSafeHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
+  } catch {
+    return '';
+  }
 }
 
 function showStatus(message, type) {

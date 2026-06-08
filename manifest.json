@@ -3,12 +3,7 @@
   "name": "AutoApplyMAX",
   "version": "1.0.0",
   "description": "Smart job application autofill for LinkedIn, Greenhouse, Lever, Workday, HireHive and more.",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "scripting",
-    "sidePanel"
-  ],
+  "permissions": ["storage", "activeTab", "scripting", "sidePanel", "downloads"],
   "side_panel": {
     "default_path": "src/sidepanel/sidepanel.html"
   },
@@ -24,7 +19,8 @@
     "https://*.zohorecruit.eu/*",
     "https://*.zohorecruit.com/*",
     "https://www.revolut.com/*",
-    "https://*/*"
+    "https://apply.workable.com/*",
+    "https://*.mainder.ai/*"
   ],
   "background": {
     "service_worker": "src/background/service-worker.js"
@@ -58,7 +54,6 @@
       "js": [
         "src/shared/constants.js",
         "src/shared/profile-schema.js",
-        "src/shared/supabase.js",
         "src/shared/storage.js",
         "src/content/adapters/adapter-base.js",
         "src/content/adapters/linkedin.js",
@@ -79,7 +74,7 @@
       ],
       "css": [],
       "run_at": "document_idle",
-      "all_frames": true
+      "all_frames": false
     }
   ],
   "icons": {

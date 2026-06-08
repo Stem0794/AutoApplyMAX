@@ -1,83 +1,87 @@
-# 🚀 AutoApplyMAX
+# AutoApplyMAX
 
-**Smart Job Application Automation for Modern Candidates.**
+AutoApplyMAX is a Chrome extension that helps fill job application forms from a reusable local profile. It combines ATS-specific adapters, general field detection, locally learned mappings, and reviewed community mappings.
 
-AutoApplyMAX is a powerful browser extension designed to eliminate the repetitive drudgery of job hunting. By leveraging intelligent field detection, a local-first profile system, and community-driven cloud matching, it empowers you to fill out complex job applications in seconds.
+AutoApplyMAX fills forms but does not submit applications for you. Review every field before submitting.
 
----
+## Supported Sites
 
-## 🌟 Why AutoApplyMAX?
+AutoApplyMAX includes dedicated support for these application hosts:
 
-- **Save Hours Daily**: Turn 10-minute forms into 10-second clicks.
-- **Proactive Intelligence**: Detects when you land on a job site and offers a one-click "Prefill" button.
-- **Support for Major Platforms**: Seamlessly works with Greenhouse, Lever, Workday, Zoho Recruit, and more.
-- **Hybrid Matching**: Combines local heuristics with community-shared mappings via Supabase.
-- **Privacy First**: Your personal data stays on **your** device. Cloud syncing is limited to anonymous form field selectors.
+| Platform | Supported hosts |
+| --- | --- |
+| LinkedIn | `linkedin.com`, `www.linkedin.com` |
+| Greenhouse | `boards.greenhouse.io`, `jobs.greenhouse.io` |
+| Lever | `jobs.lever.co` |
+| Workday | `*.myworkdayjobs.com`, `*.workday.com` |
+| HireHive | `*.hirehive.com` |
+| Zoho Recruit | `*.zohorecruit.com`, `*.zohorecruit.eu` |
+| Revolut Careers | `www.revolut.com/careers/apply/*` |
+| Workable | `apply.workable.com` |
+| Mainder | `*.mainder.ai` |
 
----
+Application forms change frequently. A supported host can still contain custom fields that require manual review or training.
 
-## 🏗 Supported Platforms
+## Privacy
 
-AutoApplyMAX provides optimized support for:
-- [x] **LinkedIn** (Easy Apply & external)
-- [x] **Greenhouse** (`boards.greenhouse.io`, `jobs.greenhouse.io`)
-- [x] **Lever** (`jobs.lever.co`)
-- [x] **Workday** (`*.myworkdayjobs.com`)
-- [x] **HireHive** (`*.hirehive.com`)
-- [x] **Zoho Recruit** (`*.zohorecruit.eu`, `*.zohorecruit.com`)
-- [ ] *More platforms coming soon!*
+Your profile, settings, locally learned field mappings, and application history are stored in `chrome.storage.local`. Resume bytes are stored separately in extension-owned IndexedDB. AutoApplyMAX does not upload your profile, resume, answers, or application history to the community service.
 
----
+The extension can use a centrally operated community service for reusable field mappings. Community submissions contain an ATS/site scope, a normalized field signature, and a non-sensitive profile-field key. Raw selectors are kept locally. Submissions are manually moderated before distribution.
 
-## ✨ Features
+See [PRIVACY.md](PRIVACY.md) for the Chrome Web Store privacy policy draft.
 
-- **Proactive Prefill**: A sleek, floating trigger appears automatically on supported sites, making autofill faster than ever.
-- **Cloud Sync (Supabase)**: Opt-in to share and receive field mappings from the community. If one person "teaches" the extension a new field, everyone benefits.
-- **Resume Upload Helper**: Due to browser security, automatic file injection is restricted. We provide a premium "Manual Upload Helper" that gives you a one-click download of your CV right next to the upload button.
-- **Advanced Field Training**: Use the built-in "Trainer" overlay to map unknown fields. See exactly what the engine matched and what's missing from your profile.
-- **Heuristic Detection Engine**: High-confidence matching for "Years of Experience," "English Level," "Work Authorization," and dozens more.
-- **Application History**: Automatically logs every job you submit for easy tracking.
+## Install From Source
 
----
+Requirements:
 
-## 🛠 Setup & Cloud Sync
+- A current Node.js LTS release
+- npm
+- Google Chrome or another Chromium-based browser
 
-### 1. Installation
-1. Download the latest release.
-2. Unzip the archive.
-3. Open `chrome://extensions`, enable **Developer mode**, and click **Load unpacked**.
+```sh
+npm ci
+AAM_COMMUNITY_API_URL=https://your-project.supabase.co \
+AAM_COMMUNITY_PUBLISHABLE_KEY=your-publishable-key \
+npm run build
+```
 
-### 2. Configure Supabase (Optional)
-To enable shared community mappings:
-1. Create a free project at [Supabase.com](https://supabase.com).
-2. Create a table named `field_mappings` with the following schema:
-   - `id`: int8 (Primary Key, Identity)
-   - `site_key`: text
-   - `selector`: text
-   - `profile_key`: text
-   - `created_at`: timestamptz (default: now())
-3. Copy your **Project URL** and **Anon Key** into the AutoApplyMAX **Settings** tab.
-4. Click **Sync with Cloud** in the "Learned Mappings" tab to contribute your findings.
+Then open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the generated `dist` directory.
 
----
+The community service is centrally configured by the distributed extension. End users do not need to create a backend project or provide service credentials.
 
-## 🔒 Privacy & Security
+## Development And Release Checks
 
-- **Local Storage**: Your personal profile (Name, Email, Phone, etc.) is **never** sent to the cloud. It stays on your machine.
-- **Anonymous Mappings**: Only form field selectors (e.g., `#first_name`) and their corresponding profile labels are synced to Supabase. No user data is ever included in these mappings.
-- **Zero Tracking**: No analytics, no tracking pixels, no telemetry.
+Before packaging a release, run:
 
----
+```sh
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+npm run package
+```
 
-## 🤝 Contributing
+- `typecheck` validates static types.
+- `lint` checks source and configuration files.
+- `test` runs the automated test suite.
+- `build` creates the unpacked extension in `dist`.
+- `package` creates the Chrome Web Store upload artifact.
 
-We welcome contributions!
-- **Add Adapters**: Help us support more ATS platforms by contributing to `src/content/adapters/`.
-- **Improve Heuristics**: Update `src/shared/profile-schema.js` with move keywords or regex patterns.
-- **Feedback**: Open an issue if a specific site isn't being recognized correctly.
+## Main Features
 
----
+- ATS-specific adapters and heuristic field detection
+- One-click prefill with a review-before-submit workflow
+- Local profile and resume storage
+- Local learning for previously unknown fields
+- Manually moderated community field mappings
+- Local application history with export controls
 
-## 📄 License
+## Contributing
 
-This project is licensed under the MIT License.
+Open an issue for a broken form or unsupported application host. Include the application host and a description of the field, but do not post personal data, resume contents, or completed application answers.
+
+Run all release checks before submitting a pull request.
+
+## License
+
+Licensed under the [MIT License](LICENSE).

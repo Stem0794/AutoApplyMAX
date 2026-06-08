@@ -1,211 +1,84 @@
 /**
- * AutoApplyMAX — chrome.storage.local wrapper
+ * Storage facade. Extension pages use trusted storage directly; content scripts
+ * call the background broker using operation-specific messages.
  */
 var AAM = window.AAM || {};
 
 AAM.Storage = {
-  /**
-   * Get value(s) from chrome.storage.local
-   * @param {string|string[]} keys
-   * @returns {Promise<object>}
-   */
+  _isExtensionPage() {
+    return window.location.protocol === 'chrome-extension:';
+  },
+
+  async _operation(operation, payload = {}) {
+    const response = await chrome.runtime.sendMessage({
+      type: AAM.CONSTANTS.MSG.STORAGE_OPERATION,
+      operation,
+      ...payload,
+    });
+    if (response?.error) throw new Error(response.error);
+    return response;
+  },
+
   get(keys) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get(keys, result => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve(result);
-        }
-      });
-    });
+    if (!this._isExtensionPage()) return Promise.reject(new Error('Direct storage access is unavailable'));
+    return chrome.storage.local.get(keys);
   },
 
-  /**
-   * Internal helper to make sure Supabase constants are up to date from settings
-   */
-  async _ensureSupabaseConfig() {
-    if (!AAM.CONSTANTS.SUPABASE_URL || !AAM.CONSTANTS.SUPABASE_KEY) {
-      const settings = await this.getSettings();
-      if (settings.supabaseUrl) AAM.CONSTANTS.SUPABASE_URL = settings.supabaseUrl;
-      if (settings.supabaseKey) AAM.CONSTANTS.SUPABASE_KEY = settings.supabaseKey;
-    }
-  },
-
-  /**
-   * Set value(s) in chrome.storage.local
-   * @param {object} data
-   * @returns {Promise<void>}
-   */
   set(data) {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.set(data, () => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve();
-        }
-      });
-    });
+    if (!this._isExtensionPage()) return Promise.reject(new Error('Direct storage access is unavailable'));
+    return chrome.storage.local.set(data);
   },
 
-  /**
-   * Get the user profile
-   * @returns {Promise<object>}
-   */
-  async getProfile() {
-    const result = await this.get(AAM.CONSTANTS.STORAGE_PROFILE);
-    return result[AAM.CONSTANTS.STORAGE_PROFILE] || {};
+  getProfile() {
+    return this._operation('getProfile');
   },
 
-  /**
-   * Save the user profile
-   * @param {object} profile
-   * @returns {Promise<void>}
-   */
-  async saveProfile(profile) {
-    return this.set({ [AAM.CONSTANTS.STORAGE_PROFILE]: profile });
+  saveProfile(profile) {
+    return this._operation('saveProfile', { profile });
   },
 
-  /**
-   * Get all learned field mappings
-   * Mapping structure: { [siteKey]: { [selector]: profileFieldKey } }
-   * @returns {Promise<object>}
-   */
-  async getMappings() {
-    const result = await this.get(AAM.CONSTANTS.STORAGE_MAPPINGS);
-    return result[AAM.CONSTANTS.STORAGE_MAPPINGS] || {};
+  getMappings() {
+    return this._operation('getMappings');
   },
 
-  /**
-   * Save a new field mapping for a site
-   * @param {string} siteKey - hostname or ATS identifier
-   * @param {string} selector - CSS selector for the form field
-   * @param {string} profileKey - key from the profile schema
-   * @returns {Promise<void>}
-   */
-  async saveMapping(siteKey, selector, profileKey) {
-    // 0. Ensure config
-    await this._ensureSupabaseConfig();
-
-    // 1. Save locally
-    const mappings = await this.getMappings();
-    if (!mappings[siteKey]) {
-      mappings[siteKey] = {};
-    }
-    mappings[siteKey][selector] = profileKey;
-    await this.set({ [AAM.CONSTANTS.STORAGE_MAPPINGS]: mappings });
-
-    // 2. Sync to Supabase (fire and forget)
-    AAM.Supabase.saveMapping(siteKey, selector, profileKey).catch(err => {
-      console.error('[AutoApplyMAX] Supabase sync failed:', err);
-    });
+  saveMapping(siteKey, selector, profileKey, signature = '') {
+    return this._operation('saveMapping', { siteKey, selector, profileKey, signature });
   },
 
-  /**
-   * Get mappings for a specific site
-   * @param {string} siteKey
-   * @returns {Promise<object>}
-   */
-  async getSiteMappings(siteKey) {
-    // 0. Ensure config
-    await this._ensureSupabaseConfig();
-
-    // 1. Get local mappings
-    const mappings = await this.getMappings();
-    const localSiteMappings = mappings[siteKey] || {};
-
-    // 2. Try to get shared mappings from Supabase
-    const sharedMappings = await AAM.Supabase.getMappings(siteKey);
-
-    if (!sharedMappings || sharedMappings.length === 0) {
-      return localSiteMappings;
-    }
-
-    // 3. Merge: local mappings take precedence over shared ones
-    const merged = {};
-    sharedMappings.forEach(m => {
-      merged[m.selector] = m.profile_key;
-    });
-
-    return { ...merged, ...localSiteMappings };
+  getSiteMappings(siteKey) {
+    return this._operation('getSiteMappings', { siteKey });
   },
 
-  /**
-   * Get extension settings
-   * @returns {Promise<object>}
-   */
-  async getSettings() {
-    const result = await this.get(AAM.CONSTANTS.STORAGE_SETTINGS);
-    return result[AAM.CONSTANTS.STORAGE_SETTINGS] || {
-      autoTrigger: false,
-      highlightFilled: true,
-      showOverlay: true,
-      showProactiveTrigger: true,
-    };
+  getSettings() {
+    return this._operation('getSettings');
   },
 
-  /**
-   * Save extension settings
-   * @param {object} settings
-   * @returns {Promise<void>}
-   */
-  async saveSettings(settings) {
-    return this.set({ [AAM.CONSTANTS.STORAGE_SETTINGS]: settings });
+  saveSettings(settings) {
+    return this._operation('saveSettings', { settings });
   },
 
-  // ── Applied Jobs Log ────────────────────────────────
-
-  /**
-   * Get all logged applied jobs
-   * @returns {Promise<Array<{jobTitle: string, company: string, url: string, timestamp: string, ats: string}>>}
-   */
-  async getAppliedJobs() {
-    const result = await this.get(AAM.CONSTANTS.STORAGE_APPLIED_JOBS);
-    return result[AAM.CONSTANTS.STORAGE_APPLIED_JOBS] || [];
+  getAppliedJobs() {
+    return this._operation('getAppliedJobs');
   },
 
-  /**
-   * Append a new applied-job entry.
-   * Deduplicates by URL — if the same URL was logged within the last 60 seconds, skip.
-   * @param {{jobTitle: string, company: string, url: string, timestamp: string, ats: string}} entry
-   * @returns {Promise<boolean>} true if saved, false if duplicate
-   */
-  async logAppliedJob(entry) {
-    const jobs = await this.getAppliedJobs();
-
-    // Deduplicate — same URL within 60 s
-    const dominated = jobs.some(j => {
-      if (j.url !== entry.url) return false;
-      const diff = Math.abs(new Date(entry.timestamp) - new Date(j.timestamp));
-      return diff < 60000;
-    });
-    if (dominated) return false;
-
-    jobs.unshift(entry); // newest first
-    await this.set({ [AAM.CONSTANTS.STORAGE_APPLIED_JOBS]: jobs });
-    return true;
+  logAppliedJob(entry) {
+    return this._operation('logAppliedJob', { entry });
   },
 
-  /**
-   * Clear all applied-job history
-   * @returns {Promise<void>}
-   */
-  async clearAppliedJobs() {
-    return this.set({ [AAM.CONSTANTS.STORAGE_APPLIED_JOBS]: [] });
+  clearAppliedJobs() {
+    return this._operation('clearAppliedJobs');
   },
 
-  /**
-   * Delete a single applied-job entry by index
-   * @param {number} index
-   * @returns {Promise<void>}
-   */
-  async deleteAppliedJob(index) {
-    const jobs = await this.getAppliedJobs();
-    if (index >= 0 && index < jobs.length) {
-      jobs.splice(index, 1);
-      await this.set({ [AAM.CONSTANTS.STORAGE_APPLIED_JOBS]: jobs });
-    }
+  deleteAppliedJob(index) {
+    return this._operation('deleteAppliedJob', { index });
+  },
+
+  confirmAppliedJob(index) {
+    return this._operation('confirmAppliedJob', { index });
+  },
+
+  clearMappings() {
+    return this._operation('clearMappings');
   },
 };
 

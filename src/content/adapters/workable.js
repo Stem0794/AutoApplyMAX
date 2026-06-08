@@ -8,7 +8,7 @@
         name: 'Workable',
 
         matches() {
-            return window.location.hostname.includes('workable.com');
+            return AAM.hostMatches('apply.workable.com', false);
         },
 
         getSiteKey() {

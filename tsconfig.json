@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/autoapplymax.tsbuildinfo",
+    "noEmit": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "types": ["chrome", "node", "vitest/globals"]
+  },
+  "include": [
+    "src/**/*.js",
+    "src/**/*.ts",
+    "esbuild.config.mjs",
+    "eslint.config.js",
+    "playwright.config.ts",
+    "tests/**/*.js",
+    "tests/**/*.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}

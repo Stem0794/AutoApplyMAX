@@ -6,6 +6,12 @@
  */
 var AAM = window.AAM || {};
 
+function aamEscapeHtml(value) {
+  const element = document.createElement('div');
+  element.textContent = String(value || '');
+  return element.innerHTML;
+}
+
 AAM.Overlay = {
   /** @type {HTMLElement|null} */
   _container: null,
@@ -18,10 +24,12 @@ AAM.Overlay = {
    */
   show(stats, detectedFields = [], siteKey = '') {
     const reviewFields = (detectedFields || []).filter(
-      f => f.source === 'unmatched' || f.confidence < AAM.CONSTANTS.CONFIDENCE_LOW || f.status === 'missing_value'
+      f => f.source === 'unmatched' ||
+        f.confidence < AAM.CONSTANTS.CONFIDENCE_LOW ||
+        ['missing_value', 'requires_confirmation', 'not_autofillable'].includes(f.status)
     );
 
-    const profileOptions = AAM.PROFILE_FIELDS.map(f =>
+    const profileOptions = AAM.PROFILE_FIELDS.filter(f => f.autofillable).map(f =>
       `<option value="${f.key}">${f.label}</option>`
     ).join('');
 
@@ -214,12 +222,16 @@ AAM.Overlay = {
             ${reviewFields.map((field, idx) => {
       const matchedKey = field.profileKey || '';
       return `
-              <div class="aam-train-item" data-selector="${encodeURIComponent(field.selector)}">
+              <div class="aam-train-item" data-review-index="${idx}" data-selector="${encodeURIComponent(field.selector)}">
                 <div class="aam-train-label-row">
-                  <span class="aam-train-label" title="${field.context}">${field.displayLabel || 'Field ' + (idx + 1)}</span>
+                  <span class="aam-train-label" title="${aamEscapeHtml(field.context || '')}">${aamEscapeHtml(field.displayLabel || 'Field ' + (idx + 1))}</span>
                   ${matchedKey ? `<span class="aam-matched-badge">${matchedKey}</span>` : ''}
                   ${field.status === 'missing_value' ? '<span class="aam-missing-badge">Missing Data</span>' : ''}
+                  ${field.status === 'requires_confirmation' ? '<span class="aam-missing-badge">Confirmation Required</span>' : ''}
                 </div>
+                ${field.status === 'requires_confirmation'
+                  ? '<button type="button" class="aam-confirm-sensitive">Fill this sensitive field</button>'
+                  : ''}
                 <select class="aam-train-select">
                   <option value="">-- Map this field --</option>
                   ${profileOptions.replace(`value="${matchedKey}"`, `value="${matchedKey}" selected`)}
@@ -234,7 +246,8 @@ AAM.Overlay = {
     // Toggle training content
     const toggle = container.querySelector('#aam-train-toggle');
     if (toggle) {
-      toggle.addEventListener('click', () => {
+      toggle.addEventListener('click', event => {
+        if (!event.isTrusted) return;
         const content = container.querySelector('#aam-train-content');
         const isHidden = content.style.display === 'none' || !content.style.display;
         content.style.display = isHidden ? 'block' : 'none';
@@ -274,13 +287,16 @@ AAM.Overlay = {
     // Handle mapping selection
     container.querySelectorAll('.aam-train-select').forEach(select => {
       select.addEventListener('change', async (e) => {
+        if (!e.isTrusted) return;
         const profileKey = e.target.value;
         const item = e.target.closest('.aam-train-item');
         const selector = decodeURIComponent(item.dataset.selector);
 
         if (profileKey && siteKey) {
           try {
-            await AAM.Storage.saveMapping(siteKey, selector, profileKey);
+            const reviewIndex = Number(item.dataset.reviewIndex);
+            const field = reviewFields[reviewIndex];
+            await AAM.Storage.saveMapping(siteKey, selector, profileKey, field?.signature || '');
 
             // Highlight the field we just mapped
             const el = document.querySelector(selector);
@@ -297,6 +313,18 @@ AAM.Overlay = {
           } catch (err) {
             console.error('[AutoApplyMAX] Failed to save mapping:', err);
           }
+        }
+      });
+    });
+
+    container.querySelectorAll('.aam-confirm-sensitive').forEach(button => {
+      button.addEventListener('click', async event => {
+        if (!event.isTrusted) return;
+        const item = event.currentTarget.closest('.aam-train-item');
+        const field = reviewFields[Number(item.dataset.reviewIndex)];
+        if (await AAM.FieldFiller.fillConfirmedField(field)) {
+          event.currentTarget.textContent = 'Filled';
+          event.currentTarget.disabled = true;
         }
       });
     });
@@ -376,7 +404,7 @@ AAM.Overlay = {
       </style>
       <div id="aam-msg-card">
         <div id="aam-msg-icon">${c.icon}</div>
-        <div id="aam-msg-text">${message}</div>
+        <div id="aam-msg-text">${aamEscapeHtml(message)}</div>
         <button id="aam-msg-close">&times;</button>
       </div>
     `;
@@ -473,7 +501,7 @@ AAM.Overlay = {
       </style>
       <div id="aam-overlay-loading">
         <div class="aam-spinner"></div>
-        <div id="aam-loading-text">${message}</div>
+        <div id="aam-loading-text">${aamEscapeHtml(message)}</div>
       </div>
     `;
   },
@@ -538,6 +566,7 @@ AAM.Overlay = {
     `;
 
     const handleClick = (e) => {
+      if (!e.isTrusted) return;
       e.stopPropagation();
       this.showLoading('Prefilling with Max...');
       onTrigger();

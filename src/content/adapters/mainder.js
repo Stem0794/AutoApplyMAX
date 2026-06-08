@@ -9,7 +9,7 @@
         name: 'Mainder',
 
         matches() {
-            return window.location.hostname.includes('mainder.ai');
+            return AAM.hostMatches('mainder.ai');
         },
 
         getSiteKey() {
@@ -46,18 +46,7 @@
             ];
         },
 
-        async afterFill(result) {
-            // Precision auto-check privacy policy / terms if found in the modal
-            const checkboxes = Array.from(document.querySelectorAll('input[type="checkbox"]'));
-            for (const cb of checkboxes) {
-                const parentText = (cb.closest('label') || cb.parentElement).textContent.toLowerCase();
-                if (parentText.match(/privacy|terms|privacidad|términos|confidentialité|datenschutz|condizioni/)) {
-                    if (!cb.checked) {
-                        cb.click();
-                    }
-                }
-            }
-        }
+        async afterFill(result) {}
     });
 
     AAM.registerAdapter(MainderAdapter);

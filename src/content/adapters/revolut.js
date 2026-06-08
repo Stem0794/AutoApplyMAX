@@ -13,7 +13,7 @@
         matches() {
             const h = window.location.hostname;
             const p = window.location.pathname;
-            return (h.includes('revolut.com')) && p.includes('/careers/apply/');
+            return h === 'www.revolut.com' && p.startsWith('/careers/apply/');
         },
 
         /**

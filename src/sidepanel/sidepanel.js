@@ -6,6 +6,7 @@
  */
 
 async function init() {
+    document.getElementById('extension-version').textContent = chrome.runtime.getManifest().version;
     updateStats();
     updateRecentActivity();
     checkCurrentTab();
@@ -41,7 +42,7 @@ async function init() {
  */
 function showFillResult(result) {
     const siteStatusEl = document.getElementById('site-status');
-    siteStatusEl.innerHTML = `<span style="color: var(--success); font-weight: 700;">Success!</span> Filled ${result.filled} and skipped ${result.skipped} fields.`;
+    siteStatusEl.textContent = `Prefill complete. Filled ${Number(result.filled) || 0} and skipped ${Number(result.skipped) || 0} fields.`;
 
     // Revert after a few seconds
     setTimeout(checkCurrentTab, 5000);
@@ -55,15 +56,7 @@ async function checkCurrentTab() {
     if (!tab || !tab.url) return;
 
     const url = new URL(tab.url);
-    const hostname = url.hostname;
-
-    let detectedATS = null;
-    for (const [key, hosts] of Object.entries(AAM.CONSTANTS.ATS_HOSTS)) {
-        if (hosts.some(h => hostname.includes(h))) {
-            detectedATS = key;
-            break;
-        }
-    }
+    const detectedATS = AAM.getSupportedATS(url);
 
     const siteNameEl = document.getElementById('site-name');
     const siteStatusEl = document.getElementById('site-status');
@@ -77,9 +70,9 @@ async function checkCurrentTab() {
         btnPrefill.disabled = false;
     } else {
         siteNameEl.textContent = 'Unknown Platform';
-        siteStatusEl.textContent = 'Heuristic matching will be used.';
+        siteStatusEl.textContent = 'This site is not supported.';
         dotEl.className = 'status-indicator inactive';
-        btnPrefill.disabled = false; // Allow trigger for generic matching
+        btnPrefill.disabled = true;
     }
 }
 
@@ -88,7 +81,7 @@ async function checkCurrentTab() {
  */
 async function triggerAutofill() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) return;
+    if (!tab?.id || !tab.url || !AAM.getSupportedATS(tab.url)) return;
 
     const btn = document.getElementById('btn-prefill');
     const originalText = btn.textContent;
@@ -99,6 +92,9 @@ async function triggerAutofill() {
     try {
         const response = await chrome.runtime.sendMessage({
             type: 'aam:trigger_autofill'
+            ,requestId: crypto.randomUUID()
+            ,tabId: tab.id
+            ,expectedOrigin: new URL(tab.url).origin
         });
 
         if (response && response.error) {
@@ -138,7 +134,7 @@ async function updateRecentActivity() {
         return;
     }
 
-    const recent = jobs.slice(-5).reverse();
+    const recent = jobs.slice(0, 5);
     list.innerHTML = recent.map(j => `
     <div style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px;">
       <div style="font-weight: 600;">${escapeHtml(j.company || 'Unknown')}</div>

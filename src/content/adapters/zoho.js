@@ -10,7 +10,8 @@
          */
         matches() {
             const h = window.location.hostname;
-            return h.includes('zohorecruit.com') || h.includes('zohorecruit.eu');
+            return AAM.isExactOrSubdomain(h, 'zohorecruit.com') ||
+                AAM.isExactOrSubdomain(h, 'zohorecruit.eu');
         },
 
         /**

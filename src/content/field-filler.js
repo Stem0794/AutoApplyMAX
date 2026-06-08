@@ -22,6 +22,7 @@ AAM.FieldFiller = {
       return;
     }
 
+    el.dataset.aamFilled = 'true';
     const tagName = el.tagName.toUpperCase();
     const role = el.getAttribute('role');
     const isContentEditable = el.getAttribute('contenteditable') === 'true';
@@ -130,8 +131,8 @@ AAM.FieldFiller = {
       // Special handling for file uploads (resume, portfolio, etc.)
       const isFileInput = element instanceof HTMLInputElement && element.type === 'file';
       if (profileKey === 'resumeFile' || isFileInput) {
-        let fileName = profile.resumeFileName || 'resume.pdf';
-        const fileContent = profile.resumeFileContent;
+        const resumeAsset = profile.resumeAsset;
+        let fileName = resumeAsset?.name || 'resume.pdf';
 
         // Smarter file renaming based on profile data and field context
         if (profile.firstName && profile.lastName) {
@@ -146,7 +147,7 @@ AAM.FieldFiller = {
           }
         }
 
-        if (fileName && fileContent) {
+        if (fileName && resumeAsset?.id) {
           detection.status = 'manual_file';
           // Programmatic file upload is generally not possible for security reasons.
           // We provide a premium "Manual Upload Helper"
@@ -171,7 +172,7 @@ AAM.FieldFiller = {
             animation: aamFadeIn 0.3s ease-out;
           `;
 
-          const fieldName = displayLabel || 'CV/Resume';
+          const fieldName = escapeHtml(displayLabel || 'CV/Resume');
           helper.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 18px;">📎</span>
@@ -184,7 +185,7 @@ AAM.FieldFiller = {
               <span style="font-family: monospace; font-size: 12px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
                 ${escapeHtml(fileName)}
               </span>
-              <button class="aam-download-btn" data-filename="${escapeHtml(fileName)}" data-filecontent="${escapeHtml(fileContent)}"
+              <button class="aam-download-btn"
                       style="
                         background: #2563eb;
                         color: white;
@@ -209,24 +210,25 @@ AAM.FieldFiller = {
             target.parentNode.insertBefore(helper, target.nextSibling);
           }
 
-          helper.querySelector('.aam-download-btn').addEventListener('click', (event) => {
+          helper.querySelector('.aam-download-btn').addEventListener('click', async (event) => {
+            if (!event.isTrusted) return;
             const btn = event.currentTarget;
-            const dlFileName = btn.dataset.filename;
-            const dlFileContent = btn.dataset.filecontent;
-            if (dlFileName && dlFileContent) {
-              const link = document.createElement('a');
-              link.href = dlFileContent;
-              link.download = dlFileName;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-
+            try {
+              const response = await chrome.runtime.sendMessage({
+                type: AAM.CONSTANTS.MSG.DOWNLOAD_RESUME,
+                assetId: resumeAsset.id,
+                filename: fileName,
+              });
+              if (response?.error) throw new Error(response.error);
               btn.textContent = 'Downloaded!';
               btn.style.background = '#16a34a';
               setTimeout(() => {
                 btn.textContent = 'Download File';
                 btn.style.background = '#2563eb';
               }, 3000);
+            } catch (error) {
+              console.warn('[AutoApplyMAX] Resume download failed:', error);
+              btn.textContent = 'Download failed';
             }
           });
 
@@ -256,6 +258,19 @@ AAM.FieldFiller = {
         continue;
       }
 
+      const fieldDefinition = AAM.PROFILE_MAP[profileKey];
+      if (!fieldDefinition?.autofillable) {
+        detection.status = 'not_autofillable';
+        skipped++;
+        continue;
+      }
+      if (fieldDefinition.requiresConfirmation) {
+        detection.status = 'requires_confirmation';
+        detection.pendingValue = value;
+        skipped++;
+        continue;
+      }
+
       // Fill the field (check for adapter-specific override first)
       let fieldFilled = false;
       if (adapter && typeof adapter.fillField === 'function') {
@@ -271,12 +286,12 @@ AAM.FieldFiller = {
       filled++;
 
       // Highlight the filled field
+      element.dataset.aamFilled = 'true';
+      element.dataset.aamProfileKey = profileKey;
       if (settings.highlightFilled !== false) {
         element.style.backgroundColor = AAM.CONSTANTS.HIGHLIGHT_COLOR;
         element.style.borderColor = AAM.CONSTANTS.HIGHLIGHT_BORDER;
         element.style.transition = 'background-color 0.3s, border-color 0.3s';
-        element.dataset.aamFilled = 'true';
-        element.dataset.aamProfileKey = profileKey;
       }
 
       filledFields.push({
@@ -288,6 +303,27 @@ AAM.FieldFiller = {
     }
 
     return { filled, skipped, unmatched, filledFields };
+  },
+
+  async fillConfirmedField(detection) {
+    if (!detection?.element || typeof detection.pendingValue !== 'string') return false;
+    const definition = AAM.PROFILE_MAP[detection.profileKey];
+    if (!definition?.requiresConfirmation) return false;
+    const adapter = AAM.getAdapter();
+    detection.element.dataset.aamFilled = 'true';
+    detection.element.dataset.aamProfileKey = detection.profileKey;
+    let filled = false;
+    if (adapter && typeof adapter.fillField === 'function') {
+      filled = await adapter.fillField(
+        detection.element,
+        detection.profileKey,
+        detection.pendingValue
+      );
+    }
+    if (!filled) this.setNativeValue(detection.element, detection.pendingValue);
+    detection.status = 'filled_confirmed';
+    delete detection.pendingValue;
+    return true;
   },
 };
 

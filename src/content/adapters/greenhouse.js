@@ -11,13 +11,12 @@ const GreenhouseAdapter = Object.assign({}, AAM.AdapterBase, {
   name: 'Greenhouse',
 
   matches() {
-    return AAM.CONSTANTS.ATS_HOSTS.GREENHOUSE.some(
-      h => window.location.hostname.includes(h)
-    );
+    return AAM.CONSTANTS.ATS_HOSTS.GREENHOUSE.some(h => AAM.hostMatches(h, false));
   },
 
   getSiteKey() {
-    return 'greenhouse.io';
+    const tenant = window.location.pathname.split('/').filter(Boolean)[0] || 'unknown';
+    return `greenhouse:${window.location.hostname}:${tenant.toLowerCase()}`;
   },
 
   async prepare() {

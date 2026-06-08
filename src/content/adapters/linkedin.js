@@ -10,9 +10,7 @@ const LinkedInAdapter = Object.assign({}, AAM.AdapterBase, {
   name: 'LinkedIn',
 
   matches() {
-    return AAM.CONSTANTS.ATS_HOSTS.LINKEDIN.some(
-      h => window.location.hostname.includes(h)
-    );
+    return AAM.hostMatches('linkedin.com');
   },
 
   getSiteKey() {

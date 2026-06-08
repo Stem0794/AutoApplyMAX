@@ -1,0 +1,5 @@
+[functions.submit-mappings]
+verify_jwt = true
+
+[functions.read-mappings]
+verify_jwt = true

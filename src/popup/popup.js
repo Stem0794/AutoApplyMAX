@@ -58,7 +58,7 @@ async function loadApplicationCount() {
       countEl.textContent = jobs.length;
       tracker.classList.remove('hidden');
     }
-  } catch (err) {
+  } catch {
     // Non-critical — silently fail
   }
 }
@@ -81,8 +81,15 @@ async function triggerAutofill() {
   btnLoading.classList.remove('hidden');
 
   try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !tab.url || !AAM.getSupportedATS(tab.url)) {
+      throw new Error('Open a supported job application page first.');
+    }
     const response = await chrome.runtime.sendMessage({
       type: AAM.CONSTANTS.MSG.TRIGGER_AUTOFILL,
+      requestId: crypto.randomUUID(),
+      tabId: tab.id,
+      expectedOrigin: new URL(tab.url).origin,
     });
 
     if (response && response.error) {
@@ -93,7 +100,7 @@ async function triggerAutofill() {
       showError('No response from content script. Make sure you are on a job application page.');
     }
   } catch (err) {
-    showError('Could not connect to the page. Try refreshing the tab.');
+    showError(err.message || 'Could not connect to the page.');
   } finally {
     btnEl.disabled = false;
     btnText.classList.remove('hidden');

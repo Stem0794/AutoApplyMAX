@@ -10,13 +10,12 @@ const LeverAdapter = Object.assign({}, AAM.AdapterBase, {
   name: 'Lever',
 
   matches() {
-    return AAM.CONSTANTS.ATS_HOSTS.LEVER.some(
-      h => window.location.hostname.includes(h)
-    );
+    return AAM.CONSTANTS.ATS_HOSTS.LEVER.some(h => AAM.hostMatches(h, false));
   },
 
   getSiteKey() {
-    return 'lever.co';
+    const tenant = window.location.pathname.split('/').filter(Boolean)[0] || 'unknown';
+    return `lever:${tenant.toLowerCase()}`;
   },
 
   async prepare() {

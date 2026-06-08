@@ -11,13 +11,11 @@ const WorkdayAdapter = Object.assign({}, AAM.AdapterBase, {
   name: 'Workday',
 
   matches() {
-    return AAM.CONSTANTS.ATS_HOSTS.WORKDAY.some(
-      h => window.location.hostname.includes(h)
-    );
+    return AAM.hostMatches('myworkdayjobs.com') || AAM.hostMatches('workday.com');
   },
 
   getSiteKey() {
-    return 'workday.com';
+    return `workday:${window.location.hostname}`;
   },
 
   async prepare() {

@@ -4,7 +4,7 @@
  * Automatically logs every job application you submit by:
  * 1. Scraping job metadata (title, company, URL) from the page
  * 2. Detecting form submissions and submit-button clicks
- * 3. Saving an entry to chrome.storage.local on submission
+ * 3. Saving a pending entry through the background broker on submission
  *
  * Uses ATS-specific selectors with cascading fallbacks so it works
  * across LinkedIn, Greenhouse, Lever, Workday, HireHive, and unknown sites.
@@ -28,10 +28,7 @@ AAM.ApplicationLogger = {
     // 1. Standard form submit (capture phase so SPAs can't swallow it)
     document.addEventListener('submit', this._onFormSubmit.bind(this), true);
 
-    // 2. Click-based submit detection (for SPAs that never fire "submit")
-    document.addEventListener('click', this._onButtonClick.bind(this), true);
-
-    // 3. Listen for messages from popup/background
+    // 2. Listen for messages from popup/background
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (msg.type === AAM.CONSTANTS.MSG.GET_APPLIED_JOBS) {
         AAM.Storage.getAppliedJobs().then(jobs => sendResponse(jobs));
@@ -49,6 +46,7 @@ AAM.ApplicationLogger = {
    * @param {SubmitEvent} e
    */
   _onFormSubmit(e) {
+    if (!e.isTrusted) return;
     // Only log if the form looks like a job application
     if (this._isApplicationForm(e.target)) {
       this._logCurrentApplication('form-submit');
@@ -61,6 +59,7 @@ AAM.ApplicationLogger = {
    * @param {MouseEvent} e
    */
   _onButtonClick(e) {
+    if (!e.isTrusted) return;
     const el = e.target.closest(
       'button, input[type="submit"], a[role="button"], [role="button"], a.btn, a.button'
     );
@@ -88,8 +87,7 @@ AAM.ApplicationLogger = {
                      el.closest('[class*="application"], [class*="apply"], [id*="application"]');
     if (!nearForm && !this._pageIsApplicationPage()) return;
 
-    // Slight delay to let the SPA process the click
-    setTimeout(() => this._logCurrentApplication('button-click'), 300);
+    // Clicks alone are not proof that an application succeeded.
   },
 
   // ── Submission Heuristics ───────────────────────────
@@ -308,6 +306,7 @@ AAM.ApplicationLogger = {
       timestamp: new Date().toISOString(),
       ats: this.detectATS(),
       trigger: trigger,
+      status: 'pending',
     };
 
     try {

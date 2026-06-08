@@ -16,6 +16,7 @@ AAM.LearningEngine = {
 
   /** @type {string} */
   _siteKey: '',
+  _handlers: null,
 
   /**
    * Start listening for manual user inputs on the page.
@@ -27,14 +28,16 @@ AAM.LearningEngine = {
     this._listening = true;
 
     // Listen for input events on the entire document
-    document.addEventListener('input', this._onInput.bind(this), true);
-    document.addEventListener('change', this._onChange.bind(this), true);
-
-    // Listen for form submissions
-    document.addEventListener('submit', this._onSubmit.bind(this), true);
-
-    // Also watch for click on common submit buttons
-    document.addEventListener('click', this._onButtonClick.bind(this), true);
+    this._handlers = {
+      input: this._onInput.bind(this),
+      change: this._onChange.bind(this),
+      submit: this._onSubmit.bind(this),
+      click: this._onButtonClick.bind(this),
+    };
+    document.addEventListener('input', this._handlers.input, true);
+    document.addEventListener('change', this._handlers.change, true);
+    document.addEventListener('submit', this._handlers.submit, true);
+    document.addEventListener('click', this._handlers.click, true);
 
     console.log('[AutoApplyMAX] Learning engine started for:', siteKey);
   },
@@ -44,10 +47,11 @@ AAM.LearningEngine = {
    */
   stop() {
     if (!this._listening) return;
-    document.removeEventListener('input', this._onInput.bind(this), true);
-    document.removeEventListener('change', this._onChange.bind(this), true);
-    document.removeEventListener('submit', this._onSubmit.bind(this), true);
-    document.removeEventListener('click', this._onButtonClick.bind(this), true);
+    document.removeEventListener('input', this._handlers.input, true);
+    document.removeEventListener('change', this._handlers.change, true);
+    document.removeEventListener('submit', this._handlers.submit, true);
+    document.removeEventListener('click', this._handlers.click, true);
+    this._handlers = null;
     this._listening = false;
   },
 
@@ -57,6 +61,7 @@ AAM.LearningEngine = {
    * @param {Event} e
    */
   _onInput(e) {
+    if (!e.isTrusted) return;
     const el = e.target;
     if (!this._isTrackableField(el)) return;
 
@@ -68,6 +73,7 @@ AAM.LearningEngine = {
 
     this._trackedInputs.set(el, {
       selector,
+      signature: AAM.FieldDetector.buildSignature(el),
       value: value.trim(),
       timestamp: Date.now(),
     });
@@ -91,6 +97,7 @@ AAM.LearningEngine = {
    * @param {Event} e
    */
   _onSubmit(e) {
+    if (!e.isTrusted) return;
     this._processAndSaveMappings();
   },
 
@@ -99,6 +106,7 @@ AAM.LearningEngine = {
    * @param {MouseEvent} e
    */
   _onButtonClick(e) {
+    if (!e.isTrusted) return;
     const el = e.target.closest('button, input[type="submit"], [role="button"]');
     if (!el) return;
 
@@ -147,16 +155,17 @@ AAM.LearningEngine = {
 
     let savedCount = 0;
 
-    for (const [el, data] of this._trackedInputs) {
-      const { selector, value } = data;
+    for (const data of this._trackedInputs.values()) {
+      const { selector, signature, value } = data;
       if (!value) continue;
 
       // Try to match the entered value to a profile field value
       const matchedKey = this._findProfileKeyByValue(value, profile);
 
       if (matchedKey) {
+        if (!AAM.isProfileKey(matchedKey) || !AAM.PROFILE_MAP[matchedKey].autofillable) continue;
         try {
-          await AAM.Storage.saveMapping(this._siteKey, selector, matchedKey);
+          await AAM.Storage.saveMapping(this._siteKey, selector, matchedKey, signature);
           savedCount++;
           console.log(
             `[AutoApplyMAX] Learned: "${selector}" → ${matchedKey} (on ${this._siteKey})`

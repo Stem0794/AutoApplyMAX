@@ -10,9 +10,7 @@ const HireHiveAdapter = Object.assign({}, AAM.AdapterBase, {
   name: 'HireHive',
 
   matches() {
-    return AAM.CONSTANTS.ATS_HOSTS.HIREHIVE.some(
-      h => window.location.hostname.includes(h)
-    );
+    return AAM.hostMatches('hirehive.com');
   },
 
   getSiteKey() {
