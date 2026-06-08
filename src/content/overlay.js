@@ -55,6 +55,7 @@ AAM.Overlay = {
           ).join('')
         }</optgroup>`
       ),
+      '<optgroup label="Missing a field?"><option value="__request__">&#10133; Request a new field…</option></optgroup>',
     ].join('');
 
     const makeFieldItem = (field, idx) => {
@@ -65,20 +66,28 @@ AAM.Overlay = {
       const badgeText = field.profileKey
         ? aamEscapeHtml(field.profileKey)
         : 'Unmatched';
+      const labelText = field.displayLabel || 'Field ' + (idx + 1);
       return `
         <div class="aam-field-item${isReview ? ' aam-field-review' : ''}"
              data-field-index="${idx}"
+             data-label="${encodeURIComponent(labelText)}"
              data-selector="${encodeURIComponent(field.selector || '')}"
              data-signature="${encodeURIComponent(field.signature || '')}">
           <div class="aam-field-row">
             <span class="aam-field-label" title="${aamEscapeHtml(field.context || '')}">
-              ${aamEscapeHtml(field.displayLabel || 'Field ' + (idx + 1))}
+              ${aamEscapeHtml(labelText)}
             </span>
             <span class="aam-field-src-badge ${badgeClass}">${badgeText}</span>
             <button class="aam-zap-btn" title="Map this field to a profile field">&#9889;</button>
           </div>
           <div class="aam-zap-picker" hidden>
             <select class="aam-zap-select">${buildOptions(field.profileKey || '')}</select>
+            <div class="aam-zap-request" hidden>
+              <input type="text" class="aam-zap-req-label" maxlength="100"
+                     placeholder="New field name (e.g. Notice period)">
+              <input type="text" class="aam-zap-req-note" maxlength="200"
+                     placeholder="Optional: what kind of value goes here?">
+            </div>
             <div class="aam-zap-actions">
               <button class="aam-zap-confirm" disabled>&#9889; Match &amp; share</button>
               <button class="aam-zap-cancel">&#10005; Cancel</button>
@@ -143,6 +152,10 @@ AAM.Overlay = {
           justify-content: center; color: white; font-size: 14px;
           font-weight: bold; flex-shrink: 0;
           box-shadow: 0 2px 4px rgba(16,185,129,0.3);
+        }
+        #aam-overlay-icon.aam-icon-review {
+          background: #f59e0b;
+          box-shadow: 0 2px 4px rgba(245,158,11,0.3);
         }
         #aam-overlay-close {
           background: none; border: none; cursor: pointer;
@@ -229,6 +242,13 @@ AAM.Overlay = {
           color: #1e293b; background: #fff; outline: none;
         }
         .aam-zap-select:focus { border-color: #3b82f6; }
+        .aam-zap-request { display: flex; flex-direction: column; gap: 6px; }
+        .aam-zap-request input {
+          width: 100%; padding: 6px 8px; font-size: 12px;
+          border-radius: 8px; border: 1px solid #e2e8f0;
+          color: #1e293b; background: #fff; outline: none; box-sizing: border-box;
+        }
+        .aam-zap-request input:focus { border-color: #8b5cf6; }
         .aam-zap-actions { display: flex; gap: 6px; }
         .aam-zap-confirm {
           flex: 1; padding: 6px 10px; font-size: 12px; font-weight: 700;
@@ -237,6 +257,8 @@ AAM.Overlay = {
         }
         .aam-zap-confirm.local { background: #6366f1; }
         .aam-zap-confirm.local:not(:disabled):hover { background: #4f46e5; }
+        .aam-zap-confirm.request { background: #8b5cf6; }
+        .aam-zap-confirm.request:not(:disabled):hover { background: #7c3aed; }
         .aam-zap-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
         .aam-zap-confirm:not(:disabled):hover { background: #d97706; }
         .aam-zap-cancel {
@@ -257,8 +279,8 @@ AAM.Overlay = {
       <div id="aam-overlay-card">
         <div id="aam-overlay-header">
           <div id="aam-overlay-title">
-            <div id="aam-overlay-icon">&#10003;</div>
-            Autofill Complete
+            <div id="aam-overlay-icon"${reviewFields.length > 0 ? ' class="aam-icon-review"' : ''}>${reviewFields.length > 0 ? '!' : '&#10003;'}</div>
+            ${reviewFields.length > 0 ? `${reviewFields.length} field${reviewFields.length > 1 ? 's' : ''} need review` : 'Autofill Complete'}
           </div>
           <button id="aam-overlay-close" title="Dismiss">&times;</button>
         </div>
@@ -349,21 +371,49 @@ AAM.Overlay = {
         const item = select.closest('.aam-field-item');
         const confirmBtn = item.querySelector('.aam-zap-confirm');
         const hint = item.querySelector('.aam-zap-hint');
+        const requestForm = item.querySelector('.aam-zap-request');
         const key = select.value;
-        confirmBtn.disabled = !key;
-        if (key) {
-          const isCloud = AAM.isCloudMappableProfileKey(key);
-          if (isCloud) {
-            confirmBtn.textContent = '⚡ Match & share';
-            confirmBtn.className = 'aam-zap-confirm';
-            hint.textContent = 'Your correction will be shared to improve detection for everyone.';
-          } else {
-            confirmBtn.textContent = '💾 Save locally';
-            confirmBtn.className = 'aam-zap-confirm local';
-            hint.textContent = 'Sensitive field — saved locally only, not shared with the community.';
+
+        if (key === '__request__') {
+          // Reveal the new-field request form, prefill the suggested name.
+          requestForm.hidden = false;
+          const labelInput = requestForm.querySelector('.aam-zap-req-label');
+          if (!labelInput.value) {
+            labelInput.value = decodeURIComponent(item.dataset.label || '');
           }
+          labelInput.focus();
+          confirmBtn.textContent = '📨 Send request';
+          confirmBtn.className = 'aam-zap-confirm request';
+          confirmBtn.disabled = !labelInput.value.trim();
+          hint.textContent = 'Suggest a new profile field — sent to the maintainers, no values included.';
+          return;
+        }
+
+        requestForm.hidden = true;
+        confirmBtn.disabled = !key;
+        if (key && AAM.isCloudMappableProfileKey(key)) {
+          confirmBtn.textContent = '⚡ Match & share';
+          confirmBtn.className = 'aam-zap-confirm';
+          hint.textContent = 'Your correction is shared to improve detection for everyone.';
+        } else if (key) {
+          confirmBtn.textContent = '💾 Save locally';
+          confirmBtn.className = 'aam-zap-confirm local';
+          hint.textContent = 'Saved locally only — this field is never shared.';
         } else {
+          confirmBtn.textContent = '⚡ Match & share';
+          confirmBtn.className = 'aam-zap-confirm';
           hint.textContent = '';
+        }
+      });
+    });
+
+    // Request form — enable the send button only when a name is entered
+    container.querySelectorAll('.aam-zap-req-label').forEach(input => {
+      input.addEventListener('input', () => {
+        const item = input.closest('.aam-field-item');
+        const select = item.querySelector('.aam-zap-select');
+        if (select.value === '__request__') {
+          item.querySelector('.aam-zap-confirm').disabled = !input.value.trim();
         }
       });
     });
@@ -387,6 +437,39 @@ AAM.Overlay = {
 
         const selector = decodeURIComponent(item.dataset.selector);
         const signature = decodeURIComponent(item.dataset.signature);
+
+        // Branch: request a new field instead of mapping to an existing one.
+        if (profileKey === '__request__') {
+          const labelInput = item.querySelector('.aam-zap-req-label');
+          const noteInput = item.querySelector('.aam-zap-req-note');
+          const suggestedLabel = labelInput.value.trim();
+          if (!suggestedLabel) return;
+
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'Sending…';
+          try {
+            await AAM.Storage.requestField({
+              suggestedLabel,
+              note: noteInput.value.trim(),
+              siteKey,
+              signature,
+            });
+            item.querySelector('.aam-zap-picker').hidden = true;
+            const badge = item.querySelector('.aam-field-src-badge');
+            badge.className = 'aam-field-src-badge aam-badge-community';
+            badge.textContent = 'Requested';
+            const zapBtn = item.querySelector('.aam-zap-btn');
+            zapBtn.textContent = '✓';
+            zapBtn.style.color = '#8b5cf6';
+            setTimeout(() => { zapBtn.textContent = '⚡'; zapBtn.style.color = ''; }, 2000);
+          } catch (err) {
+            console.error('[AutoApplyMAX] Field request failed:', err);
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = '📨 Retry request';
+            item.querySelector('.aam-zap-hint').textContent = 'Request failed — please try again.';
+          }
+          return;
+        }
 
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Saving…';

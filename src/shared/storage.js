@@ -81,6 +81,23 @@ AAM.Storage = {
   clearMappings() {
     return this._operation('clearMappings');
   },
+
+  /**
+   * Request that a brand-new profile field be added to the app. Sent to the
+   * community backend for maintainers to review. No profile values are sent —
+   * only the user-authored label/note and the structural field signature.
+   */
+  async requestField({ suggestedLabel, note = '', siteKey = '', signature = '' }) {
+    const response = await chrome.runtime.sendMessage({
+      type: AAM.CONSTANTS.MSG.REQUEST_FIELD,
+      suggestedLabel,
+      note,
+      siteKey,
+      signature,
+    });
+    if (response?.error) throw new Error(response.error);
+    return response;
+  },
 };
 
 window.AAM = AAM;

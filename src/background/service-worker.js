@@ -13,6 +13,8 @@ let historyWriteQueue = Promise.resolve();
 let mappingWriteQueue = Promise.resolve();
 /** Hosts we've already reported adapter drift for this service-worker lifetime. */
 const reportedDriftHosts = new Set();
+/** host|label pairs we've already submitted as field requests this lifetime. */
+const requestedFieldKeys = new Set();
 
 let initializationPromise = initialize();
 
@@ -61,6 +63,9 @@ async function handleMessage(message, sender) {
     case AAM.CONSTANTS.MSG.REPORT_DRIFT:
       assertSupportedContentSender(sender);
       return reportDrift(message, sender);
+    case AAM.CONSTANTS.MSG.REQUEST_FIELD:
+      assertSupportedContentSender(sender);
+      return requestField(message, sender);
     case AAM.CONSTANTS.MSG.SIGN_IN:
       assertExtensionPageSender(sender);
       return signInWithPassword(message.email, message.password);
@@ -145,7 +150,7 @@ async function injectContentScripts(tabId) {
 
 async function handleStorageOperation(message, sender) {
   const operation = message.operation;
-  const fromContent = Boolean(sender.tab) && !(sender.url?.startsWith(chrome.runtime.getURL('')));
+  const fromContent = Boolean(sender.tab) && !sender.url?.startsWith(chrome.runtime.getURL(''));
   if (fromContent) assertSupportedContentSender(sender);
   else assertExtensionPageSender(sender);
 
@@ -361,9 +366,10 @@ async function logAppliedJob(input, senderUrl) {
   };
 
   const jobs = await getStorageValue(AAM.CONSTANTS.STORAGE_APPLIED_JOBS, []);
-  const duplicate = jobs.some(job =>
-    job.url === entry.url &&
-    Math.abs(Date.parse(entry.timestamp) - Date.parse(job.timestamp)) < 60000
+  const duplicate = jobs.some(
+    job =>
+      job.url === entry.url &&
+      Math.abs(Date.parse(entry.timestamp) - Date.parse(job.timestamp)) < 60000
   );
   if (duplicate) return false;
   jobs.unshift(entry);
@@ -393,9 +399,7 @@ async function deleteAppliedJob(index) {
 }
 
 function cleanText(value, maxLength, fallback = '') {
-  return typeof value === 'string' && value.trim()
-    ? value.trim().slice(0, maxLength)
-    : fallback;
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, maxLength) : fallback;
 }
 
 function safeHttpUrl(value, fallbackOrigin) {
@@ -412,7 +416,11 @@ async function saveResumeMessage(message) {
   const bytes = message.bytes;
   const name = cleanText(message.name, 255);
   const mime = cleanText(message.mime, 100);
-  if (!(bytes instanceof ArrayBuffer) || !name || bytes.byteLength > AAM.CONSTANTS.MAX_RESUME_BYTES) {
+  if (
+    !(bytes instanceof ArrayBuffer) ||
+    !name ||
+    bytes.byteLength > AAM.CONSTANTS.MAX_RESUME_BYTES
+  ) {
     throw new Error('Invalid or oversized resume');
   }
   if (!isAllowedResumeType(name, mime)) throw new Error('Resume must be PDF, DOC, or DOCX');
@@ -463,13 +471,16 @@ function isResumeMetadata(value) {
 }
 
 function sanitizeFilename(value) {
-  return String(value || 'resume.pdf').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 255);
+  return String(value || 'resume.pdf')
+    .replace(/[\\/:*?"<>|]+/g, '_')
+    .slice(0, 255);
 }
 
 function openResumeDb() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(RESUME_DB, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(RESUME_STORE, { keyPath: 'id' });
+    request.onupgradeneeded = () =>
+      request.result.createObjectStore(RESUME_STORE, { keyPath: 'id' });
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
@@ -504,7 +515,8 @@ async function migrateLegacyResume(profile) {
     const binary = atob(encoded || '');
     const bytes = new Uint8Array(binary.length);
     for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
-    if (bytes.byteLength > AAM.CONSTANTS.MAX_RESUME_BYTES) throw new Error('Legacy resume is too large');
+    if (bytes.byteLength > AAM.CONSTANTS.MAX_RESUME_BYTES)
+      throw new Error('Legacy resume is too large');
     const asset = await saveResumeMessage({
       bytes: bytes.buffer,
       name: profile.resumeFileName,
@@ -570,13 +582,15 @@ async function getApprovedMappings(siteKey) {
 }
 
 async function submitMappings(mappings) {
-  if (!Array.isArray(mappings) || mappings.length > 500) throw new Error('Invalid mappings payload');
-  const submissions = mappings.filter(item =>
-    item &&
-    typeof item.siteKey === 'string' &&
-    typeof item.signature === 'string' &&
-    item.signature.length <= 500 &&
-    AAM.isCloudMappableProfileKey(item.profileKey)
+  if (!Array.isArray(mappings) || mappings.length > 500)
+    throw new Error('Invalid mappings payload');
+  const submissions = mappings.filter(
+    item =>
+      item &&
+      typeof item.siteKey === 'string' &&
+      typeof item.signature === 'string' &&
+      item.signature.length <= 500 &&
+      AAM.isCloudMappableProfileKey(item.profileKey)
   );
   if (!AAM.CONSTANTS.COMMUNITY_API_URL || !AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY) {
     throw new Error('Community service is not configured in this build');
@@ -586,21 +600,22 @@ async function submitMappings(mappings) {
   const response = await fetch(
     new URL('/functions/v1/submit-mappings', AAM.CONSTANTS.COMMUNITY_API_URL),
     {
-    method: 'POST',
-    headers: {
-      apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
-      Authorization: `Bearer ${session.accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      installationId,
-      mappings: submissions.map(item => ({
-        siteKey: item.siteKey,
-        fieldSignature: item.signature,
-        profileKey: item.profileKey,
-      })),
-    }),
-  });
+      method: 'POST',
+      headers: {
+        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        installationId,
+        mappings: submissions.map(item => ({
+          siteKey: item.siteKey,
+          fieldSignature: item.signature,
+          profileKey: item.profileKey,
+        })),
+      }),
+    }
+  );
   if (!response.ok) throw new Error('Community submission failed');
   return response.json();
 }
@@ -622,9 +637,7 @@ async function reportDrift(message, sender) {
   if (!adapterName || !siteKey) throw new Error('Invalid drift payload');
 
   const missingProfileKeys = Array.isArray(message.missingProfileKeys)
-    ? message.missingProfileKeys
-        .filter(key => AAM.isProfileKey(key))
-        .slice(0, 40)
+    ? message.missingProfileKeys.filter(key => AAM.isProfileKey(key)).slice(0, 40)
     : [];
 
   // Only structural signatures — never values — and drop restricted semantics.
@@ -664,6 +677,72 @@ async function reportDrift(message, sender) {
   return { reported: true };
 }
 
+/** Collapse whitespace, strip control characters, and clamp length. */
+function cleanRequestText(value, maxLength) {
+  if (typeof value !== 'string') return '';
+  // eslint-disable-next-line no-control-regex
+  const stripped = value.replace(/[\u0000-\u001f\u007f]/g, ' ');
+  return stripped.replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+async function requestField(message, sender) {
+  if (!AAM.CONSTANTS.COMMUNITY_API_URL || !AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY) {
+    return { requested: false };
+  }
+
+  const ats = AAM.getSupportedATS(sender.url);
+  if (!ats) throw new Error('Unsupported sender origin');
+
+  const suggestedLabel = cleanRequestText(message.suggestedLabel, 100);
+  if (!suggestedLabel) throw new Error('A field name is required');
+
+  const host = new URL(sender.url).hostname.toLowerCase();
+  const dedupeKey = `${host}|${suggestedLabel.toLowerCase()}`;
+  if (requestedFieldKeys.has(dedupeKey)) return { requested: false, deduped: true };
+
+  const note = cleanRequestText(message.note, 500) || null;
+  const siteKey = String(message.siteKey || '').slice(0, 253) || null;
+
+  // Attach the structural signature only (never values). Drop it if it isn't
+  // the normalized JSON shape we expect.
+  let fieldSignature = null;
+  if (typeof message.signature === 'string' && message.signature.length <= 1000) {
+    try {
+      const parsed = JSON.parse(message.signature);
+      if (parsed && parsed.v === 1) fieldSignature = parsed;
+    } catch {
+      fieldSignature = null;
+    }
+  }
+
+  const session = await getCommunitySession();
+  const response = await fetch(
+    new URL('/rest/v1/field_requests', AAM.CONSTANTS.COMMUNITY_API_URL),
+    {
+      method: 'POST',
+      headers: {
+        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        suggested_label: suggestedLabel,
+        note,
+        site_key: siteKey,
+        host,
+        field_signature: fieldSignature,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    console.warn('[AutoApplyMAX] Field request failed:', response.status);
+    return { requested: false };
+  }
+  requestedFieldKeys.add(dedupeKey);
+  return { requested: true };
+}
+
 async function getInstallationId() {
   let installationId = await getStorageValue(AAM.CONSTANTS.STORAGE_INSTALLATION_ID, '');
   if (!/^[0-9a-f-]{36}$/i.test(installationId)) {
@@ -680,10 +759,9 @@ async function getCommunitySession() {
   if (stored?.accessToken && Number(stored.expiresAt) > Date.now() + 60000) return stored;
 
   if (stored?.refreshToken) {
-    const refreshed = await requestCommunityAuth(
-      `/auth/v1/token?grant_type=refresh_token`,
-      { refresh_token: stored.refreshToken }
-    );
+    const refreshed = await requestCommunityAuth(`/auth/v1/token?grant_type=refresh_token`, {
+      refresh_token: stored.refreshToken,
+    });
     if (refreshed) return persistCommunitySession(refreshed);
   }
 
@@ -722,13 +800,39 @@ async function persistCommunitySession(raw) {
 // ── User Auth (Magic Link / OTP) ─────────────────────
 
 const CLOUD_SYNC_FIELDS = new Set([
-  'salutation', 'firstName', 'lastName', 'fullName', 'email',
-  'phoneCountryCode', 'phone', 'address', 'city', 'state', 'zip', 'country',
-  'linkedinUrl', 'githubUrl', 'portfolioUrl', 'currentTitle', 'currentCompany',
-  'yearsExperience', 'education', 'preferredLocations', 'skills', 'englishLevel',
-  'startDate', 'workAuthorization', 'sponsorshipRequirement', 'howDidYouHear',
-  'salaryExpectation', 'gender', 'ethnicity', 'disabilityStatus', 'veteranStatus',
-  'privacyPolicyConsent', 'coverLetter',
+  'salutation',
+  'firstName',
+  'lastName',
+  'fullName',
+  'email',
+  'phoneCountryCode',
+  'phone',
+  'address',
+  'city',
+  'state',
+  'zip',
+  'country',
+  'linkedinUrl',
+  'githubUrl',
+  'portfolioUrl',
+  'currentTitle',
+  'currentCompany',
+  'yearsExperience',
+  'education',
+  'preferredLocations',
+  'skills',
+  'englishLevel',
+  'startDate',
+  'workAuthorization',
+  'sponsorshipRequirement',
+  'howDidYouHear',
+  'salaryExpectation',
+  'gender',
+  'ethnicity',
+  'disabilityStatus',
+  'veteranStatus',
+  'privacyPolicyConsent',
+  'coverLetter',
 ]);
 
 function requireApiUrl() {
@@ -827,19 +931,16 @@ async function syncProfileToCloud(profile, session) {
       cloudData[key] = profile[key];
     }
   }
-  const response = await fetch(
-    new URL('/rest/v1/profiles', AAM.CONSTANTS.COMMUNITY_API_URL),
-    {
-      method: 'POST',
-      headers: {
-        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${session.accessToken}`,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates',
-      },
-      body: JSON.stringify({ user_id: session.userId, data: cloudData }),
-    }
-  );
+  const response = await fetch(new URL('/rest/v1/profiles', AAM.CONSTANTS.COMMUNITY_API_URL), {
+    method: 'POST',
+    headers: {
+      apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${session.accessToken}`,
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates',
+    },
+    body: JSON.stringify({ user_id: session.userId, data: cloudData }),
+  });
   if (!response.ok) {
     console.warn('[AutoApplyMAX] Cloud profile sync failed:', await response.text());
   }
@@ -847,7 +948,10 @@ async function syncProfileToCloud(profile, session) {
 
 async function fetchProfileFromCloud(session) {
   const response = await fetch(
-    new URL(`/rest/v1/profiles?user_id=eq.${session.userId}&select=data`, AAM.CONSTANTS.COMMUNITY_API_URL),
+    new URL(
+      `/rest/v1/profiles?user_id=eq.${session.userId}&select=data`,
+      AAM.CONSTANTS.COMMUNITY_API_URL
+    ),
     {
       headers: {
         apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,

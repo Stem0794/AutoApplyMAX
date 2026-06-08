@@ -152,7 +152,7 @@ describe('public-release security boundaries', () => {
     load('src/content/overlay.js');
     aam().Storage = {
       saveMapping: vi.fn().mockResolvedValue(true),
-      saveMappingExplicit: vi.fn().mockResolvedValue(true),
+      requestField: vi.fn().mockResolvedValue(true),
     };
     const input = document.createElement('input');
     input.id = 'unknown';
@@ -182,9 +182,13 @@ describe('public-release security boundaries', () => {
     // Synthetic confirm click must NOT save — isTrusted guard blocks it
     const confirmBtn = document.querySelector('.aam-zap-confirm') as HTMLButtonElement;
     confirmBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    // Same guard must block a synthetic new-field request
+    select.value = '__request__';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    confirmBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await Promise.resolve();
-    expect(aam().Storage.saveMappingExplicit).not.toHaveBeenCalled();
     expect(aam().Storage.saveMapping).not.toHaveBeenCalled();
+    expect(aam().Storage.requestField).not.toHaveBeenCalled();
   });
 
   it('does not log history from synthetic submit events', async () => {
