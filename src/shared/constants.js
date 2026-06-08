@@ -83,6 +83,7 @@ AAM.CONSTANTS = {
     DOWNLOAD_RESUME: 'aam:download_resume',
     SAVE_RESUME: 'aam:save_resume',
     SUBMIT_MAPPINGS: 'aam:submit_mappings',
+    REPORT_DRIFT: 'aam:report_drift',
     SEND_MAGIC_LINK: 'aam:send_magic_link',
     VERIFY_OTP: 'aam:verify_otp',
     SIGN_IN: 'aam:sign_in',

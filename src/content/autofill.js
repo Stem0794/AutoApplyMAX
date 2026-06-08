@@ -116,6 +116,56 @@ AAM.Autofill = {
   },
 
   /**
+   * Decide whether a known adapter has drifted — i.e. it declares known
+   * field mappings but none of them matched any field on the page, even
+   * though the page clearly has a form. Pure function for testability.
+   *
+   * @param {Array} detectedFields
+   * @param {{name: string}} adapter
+   * @param {Array<{selector: string, profileKey: string}>} knownMappings
+   * @returns {{adapter: string, missingProfileKeys: string[]}|null}
+   */
+  detectAdapterDrift(detectedFields, adapter, knownMappings) {
+    if (!adapter || adapter.name === 'Generic') return null;
+    if (!Array.isArray(knownMappings) || knownMappings.length === 0) return null;
+    if (!Array.isArray(detectedFields) || detectedFields.length === 0) return null;
+
+    const adapterMatched = detectedFields.filter(f => f.source === 'adapter').length;
+    if (adapterMatched > 0) return null;
+
+    const expectedKeys = [...new Set(knownMappings.map(m => m.profileKey))];
+    const resolvedKeys = new Set(
+      detectedFields.filter(f => f.profileKey).map(f => f.profileKey)
+    );
+    const missingProfileKeys = expectedKeys.filter(key => !resolvedKeys.has(key));
+    return { adapter: adapter.name, missingProfileKeys };
+  },
+
+  /**
+   * Fire-and-forget drift telemetry + a one-line console note.
+   * @param {{adapter: string, missingProfileKeys: string[]}} drift
+   * @param {string} siteKey
+   * @param {Array} detectedFields
+   */
+  reportDrift(drift, siteKey, detectedFields) {
+    try {
+      const fieldSignatures = detectedFields
+        .map(f => f.signature || AAM.FieldDetector.buildSignature(f.element))
+        .filter(Boolean)
+        .slice(0, 50);
+      chrome.runtime.sendMessage({
+        type: AAM.CONSTANTS.MSG.REPORT_DRIFT,
+        adapter: drift.adapter,
+        siteKey,
+        missingProfileKeys: drift.missingProfileKeys,
+        fieldSignatures,
+      }).catch(() => {});
+    } catch {
+      // Telemetry is best-effort; never block autofill.
+    }
+  },
+
+  /**
    * Run the full autofill pipeline.
    * @returns {Promise<{filled: number, skipped: number, unmatched: number, adapter: string}>}
    */
@@ -159,6 +209,17 @@ AAM.Autofill = {
       const detectedFields = AAM.FieldDetector.detectFields(siteMappings, knownMappings);
       console.log(`[AutoApplyMAX] Detected ${detectedFields.length} form fields`);
 
+      // 7b. Detect adapter drift (known site whose selectors no longer match).
+      const drift = this.detectAdapterDrift(detectedFields, adapter, knownMappings);
+      let driftNotice = '';
+      if (drift) {
+        console.warn(`[AutoApplyMAX] Adapter drift detected for ${adapter.name} — its known fields matched nothing.`);
+        this.reportDrift(drift, siteKey, detectedFields);
+        driftNotice =
+          `${adapter.name} looks different than we expected. ` +
+          `Map any wrong fields below — your fixes are shared so everyone adapts.`;
+      }
+
       // 8. Fill the fields
       const result = await AAM.FieldFiller.fillFields(detectedFields, profile, settings);
       console.log(
@@ -175,7 +236,7 @@ AAM.Autofill = {
           filled: result.filled,
           skipped: result.skipped,
           unmatched: result.unmatched,
-        }, detectedFields, siteKey);
+        }, detectedFields, siteKey, driftNotice);
       }
 
       // 11. Notify the background/sidepanel that we're done

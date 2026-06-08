@@ -21,8 +21,9 @@ AAM.Overlay = {
    * @param {{filled: number, skipped: number}} stats
    * @param {Array} detectedFields
    * @param {string} siteKey
+   * @param {string} notice - optional banner shown above the stats (e.g. drift nudge)
    */
-  show(stats, detectedFields = [], siteKey = '') {
+  show(stats, detectedFields = [], siteKey = '', notice = '') {
     const reviewFields = (detectedFields || []).filter(
       f => f.source === 'unmatched' ||
         f.confidence < AAM.CONSTANTS.CONFIDENCE_LOW ||
@@ -137,6 +138,21 @@ AAM.Overlay = {
           border: 1px solid #fca5a5;
         }
 
+        #aam-overlay-notice {
+          display: flex;
+          gap: 8px;
+          align-items: flex-start;
+          font-size: 12px;
+          line-height: 1.4;
+          color: #92400e;
+          background: #fffbeb;
+          border: 1px solid #fde68a;
+          border-radius: 10px;
+          padding: 10px 12px;
+          margin-bottom: 14px;
+        }
+        #aam-overlay-notice .aam-notice-icon { flex-shrink: 0; font-weight: 800; }
+
         #aam-overlay-message { font-size: 13px; color: #475569; text-align: center; margin-bottom: 16px; line-height: 1.5; }
         #aam-overlay-message strong { color: #1e293b; }
         
@@ -198,6 +214,7 @@ AAM.Overlay = {
           </div>
           <button id="aam-overlay-close" title="Dismiss">&times;</button>
         </div>
+        ${notice ? `<div id="aam-overlay-notice"><span class="aam-notice-icon">&#9888;</span><span>${aamEscapeHtml(notice)}</span></div>` : ''}
         <div id="aam-overlay-stats">
           <div class="aam-stat aam-stat-filled">
             <span class="aam-stat-number">${stats.filled}</span>

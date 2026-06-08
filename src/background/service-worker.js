@@ -11,6 +11,8 @@ const LOCAL_MAPPING_SOURCE = 'local';
 const COMMUNITY_MAPPING_SOURCE = 'community';
 let historyWriteQueue = Promise.resolve();
 let mappingWriteQueue = Promise.resolve();
+/** Hosts we've already reported adapter drift for this service-worker lifetime. */
+const reportedDriftHosts = new Set();
 
 let initializationPromise = initialize();
 
@@ -56,6 +58,9 @@ async function handleMessage(message, sender) {
     case AAM.CONSTANTS.MSG.SUBMIT_MAPPINGS:
       assertExtensionPageSender(sender);
       return submitMappings(message.mappings);
+    case AAM.CONSTANTS.MSG.REPORT_DRIFT:
+      assertSupportedContentSender(sender);
+      return reportDrift(message, sender);
     case AAM.CONSTANTS.MSG.SIGN_IN:
       assertExtensionPageSender(sender);
       return signInWithPassword(message.email, message.password);
@@ -602,6 +607,65 @@ async function submitMappings(mappings) {
   });
   if (!response.ok) throw new Error('Community submission failed');
   return response.json();
+}
+
+async function reportDrift(message, sender) {
+  if (!AAM.CONSTANTS.COMMUNITY_API_URL || !AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY) {
+    return { reported: false };
+  }
+
+  const ats = AAM.getSupportedATS(sender.url);
+  if (!ats) throw new Error('Unsupported sender origin');
+
+  const host = new URL(sender.url).hostname.toLowerCase();
+  // Throttle: one report per host per service-worker lifetime.
+  if (reportedDriftHosts.has(host)) return { reported: false, deduped: true };
+
+  const adapterName = String(message.adapter || '').slice(0, 64);
+  const siteKey = String(message.siteKey || '').slice(0, 253);
+  if (!adapterName || !siteKey) throw new Error('Invalid drift payload');
+
+  const missingProfileKeys = Array.isArray(message.missingProfileKeys)
+    ? message.missingProfileKeys
+        .filter(key => AAM.isProfileKey(key))
+        .slice(0, 40)
+    : [];
+
+  // Only structural signatures — never values — and drop restricted semantics.
+  const restricted =
+    /(^|[^a-z0-9])(resume|curriculum|cv|salary|compensation|wage|pay|privacy|consent|eeo|demographic|race|racial|ethnicity|ethnic|gender|sex|disability|disabled|veteran|military)([^a-z0-9]|$)/i;
+  const fieldSignatures = Array.isArray(message.fieldSignatures)
+    ? message.fieldSignatures
+        .filter(sig => typeof sig === 'string' && sig.length <= 1000 && !restricted.test(sig))
+        .slice(0, 50)
+    : [];
+
+  const session = await getCommunitySession();
+  const response = await fetch(
+    new URL('/rest/v1/adapter_drift_signals', AAM.CONSTANTS.COMMUNITY_API_URL),
+    {
+      method: 'POST',
+      headers: {
+        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        adapter_name: adapterName,
+        site_key: siteKey,
+        host,
+        missing_profile_keys: missingProfileKeys,
+        field_signatures: fieldSignatures,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    console.warn('[AutoApplyMAX] Drift report failed:', response.status);
+    return { reported: false };
+  }
+  reportedDriftHosts.add(host);
+  return { reported: true };
 }
 
 async function getInstallationId() {

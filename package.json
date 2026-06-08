@@ -1,6 +1,6 @@
 {
   "name": "autoapplymax",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Tooling and packaging for the AutoApplyMAX Chrome extension.",
@@ -9,6 +9,7 @@
     "build": "node esbuild.config.mjs",
     "package": "npm run build && rm -f autoapplymax-extension.zip && cd dist && zip -qr ../autoapplymax-extension.zip .",
     "dev": "node esbuild.config.mjs --watch",
+    "suggest:adapters": "node scripts/suggest-adapter-fixes.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "format:check": "prettier --check \"*.{json,js,mjs,ts}\" \".github/**/*.yml\" \"tests/**/*.{json,js,ts}\"",
