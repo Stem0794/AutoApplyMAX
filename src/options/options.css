@@ -1,5 +1,7 @@
 /* ── AutoApplyMAX Options Page Styles ── */
 
+.hidden { display: none !important; }
+
 :root {
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
