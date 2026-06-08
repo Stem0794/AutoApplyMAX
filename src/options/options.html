@@ -183,8 +183,15 @@
       <!-- Admin Tab (reviewers only) -->
       <div class="tab-panel" id="panel-admin">
         <div class="panel-header">
-          <h2>Admin — Community Review</h2>
-          <p>Triage new-field requests and validate community mappings without touching SQL. Reviewer access only.</p>
+          <div class="panel-header-row">
+            <div>
+              <h2>Admin — Community Review</h2>
+              <p>Triage new-field requests and validate community mappings without touching SQL. Reviewer access only.</p>
+            </div>
+            <div class="panel-header-actions">
+              <button type="button" id="btn-export-schema" class="btn btn-outline" title="Export the current field schema plus open requests as JSON for an AI/dev to implement">Export field schema</button>
+            </div>
+          </div>
         </div>
 
         <div class="admin-section">

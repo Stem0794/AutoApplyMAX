@@ -556,6 +556,7 @@ function initEventListeners() {
   // Admin tab
   document.getElementById('btn-refresh-mappings').addEventListener('click', loadAdminMappings);
   document.getElementById('btn-refresh-requests').addEventListener('click', loadAdminRequests);
+  document.getElementById('btn-export-schema').addEventListener('click', exportFieldSchema);
   document.getElementById('btn-copy-snippet').addEventListener('click', () => {
     const code = document.getElementById('admin-snippet-code').textContent;
     navigator.clipboard.writeText(code).then(
@@ -836,6 +837,65 @@ function buildFieldSnippet(label) {
     keywords: [${keywords.join(', ')}],
     aliases: [/${aliasSrc}/i],
   },`;
+}
+
+/**
+ * Export the current PROFILE_FIELDS schema plus open/planned field requests as
+ * a single JSON document — hand it to an AI or dev to implement new fields in a
+ * release. Regex aliases are serialised to their source strings.
+ */
+async function exportFieldSchema() {
+  let requests = [];
+  try {
+    const rows = await chrome.runtime.sendMessage({ type: AAM.CONSTANTS.MSG.ADMIN_LIST_REQUESTS });
+    if (Array.isArray(rows)) {
+      requests = rows
+        .filter(r => r.status === 'open' || r.status === 'planned')
+        .map(r => ({
+          suggestedLabel: r.suggested_label,
+          note: r.note || null,
+          host: r.host || null,
+          status: r.status,
+        }));
+    }
+  } catch {
+    // Export the schema even if requests can't be loaded.
+  }
+
+  const currentFields = AAM.PROFILE_FIELDS.map(f => ({
+    key: f.key,
+    label: f.label,
+    type: f.type,
+    group: f.group,
+    keywords: f.keywords,
+    aliases: (f.aliases || []).map(re => re.source),
+    sensitivity: f.sensitivity,
+    cloudMappable: f.cloudMappable,
+  }));
+
+  const doc = {
+    exportedAt: new Date().toISOString(),
+    schemaVersion: AAM.CONSTANTS.SCHEMA_VERSION,
+    note:
+      'currentFields = the live AAM.PROFILE_FIELDS schema (aliases are regex source strings). ' +
+      'requestedFields = user-submitted fields the app does not have yet. ' +
+      'To add a field, append an entry to AAM.PROFILE_FIELDS in src/shared/profile-schema.js ' +
+      '(aliases must be real /regex/ literals) and ship an extension update.',
+    currentFields,
+    requestedFields: requests,
+  };
+
+  const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'autoapplymax-field-schema.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showStatus(
+    `Exported ${currentFields.length} fields and ${requests.length} request(s).`,
+    'success'
+  );
 }
 
 async function promoteRequest(request) {
