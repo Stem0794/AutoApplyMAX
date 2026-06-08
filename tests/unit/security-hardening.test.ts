@@ -144,11 +144,14 @@ describe('public-release security boundaries', () => {
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it('does not save trainer mappings from synthetic change events', async () => {
+  it('does not save field mappings from synthetic events', async () => {
     load('src/content/adapters/adapter-base.js');
     load('src/content/field-filler.js');
     load('src/content/overlay.js');
-    aam().Storage = { saveMapping: vi.fn().mockResolvedValue(true) };
+    aam().Storage = {
+      saveMapping: vi.fn().mockResolvedValue(true),
+      saveMappingExplicit: vi.fn().mockResolvedValue(true),
+    };
     const input = document.createElement('input');
     input.id = 'unknown';
     document.body.appendChild(input);
@@ -168,10 +171,17 @@ describe('public-release security boundaries', () => {
       ],
       'greenhouse:boards.greenhouse.io:acme'
     );
-    const select = document.querySelector('.aam-train-select') as HTMLSelectElement;
+    // Manually open the picker (the ⚡ button click is blocked by isTrusted guard)
+    const picker = document.querySelector('.aam-zap-picker') as HTMLElement;
+    picker.hidden = false;
+    const select = document.querySelector('.aam-zap-select') as HTMLSelectElement;
     select.value = 'email';
     select.dispatchEvent(new Event('change', { bubbles: true }));
+    // Synthetic confirm click must NOT save — isTrusted guard blocks it
+    const confirmBtn = document.querySelector('.aam-zap-confirm') as HTMLButtonElement;
+    confirmBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await Promise.resolve();
+    expect(aam().Storage.saveMappingExplicit).not.toHaveBeenCalled();
     expect(aam().Storage.saveMapping).not.toHaveBeenCalled();
   });
 

@@ -178,7 +178,8 @@ async function handleStorageOperation(message, sender) {
           message.selector,
           message.profileKey,
           message.signature,
-          sender
+          sender,
+          message.explicitShare === true
         )
       );
       return mappingWriteQueue;
@@ -294,7 +295,7 @@ async function getSiteMappings(siteKey, senderUrl) {
   };
 }
 
-async function saveMapping(siteKey, selector, profileKey, signature, sender) {
+async function saveMapping(siteKey, selector, profileKey, signature, sender, explicitShare = false) {
   validateSiteKey(siteKey, sender.url);
   validateSelector(selector);
   if (!AAM.isProfileKey(profileKey) || !AAM.PROFILE_MAP[profileKey].autofillable) {
@@ -309,7 +310,7 @@ async function saveMapping(siteKey, selector, profileKey, signature, sender) {
 
   const settings = await getSettings();
   if (
-    settings.shareMappings &&
+    (explicitShare || settings.shareMappings) &&
     AAM.isCloudMappableProfileKey(profileKey) &&
     typeof signature === 'string' &&
     signature.length <= 500
