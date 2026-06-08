@@ -42,6 +42,7 @@
       <button class="tab" data-tab="account">Account</button>
       <button class="tab" data-tab="history">Application History</button>
       <button class="tab" data-tab="mappings">Learned Mappings</button>
+      <button class="tab" data-tab="platforms">Supported Platforms</button>
       <button class="tab" data-tab="admin" id="tab-admin" hidden>Admin</button>
     </nav>
 
@@ -177,6 +178,24 @@
         </div>
         <div class="mappings-actions">
           <button type="button" id="btn-clear-mappings" class="btn btn-danger">Clear All Mappings</button>
+        </div>
+      </div>
+
+      <!-- Supported Platforms Tab -->
+      <div class="tab-panel" id="panel-platforms">
+        <div class="panel-header">
+          <div class="panel-header-row">
+            <div>
+              <h2>Supported Platforms</h2>
+              <p>Applicant tracking systems AutoApplyMAX can autofill. "Live" platforms autofill automatically; "Adapter ready" platforms have built support that isn't enabled in this build yet.</p>
+            </div>
+            <div class="panel-header-actions">
+              <span id="platforms-count" class="history-count"></span>
+            </div>
+          </div>
+        </div>
+        <div id="platforms-content">
+          <p class="empty-state">Loading…</p>
         </div>
       </div>
 

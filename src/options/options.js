@@ -50,6 +50,9 @@ function initTabs() {
       if (tab.dataset.tab === 'admin') {
         loadAdmin();
       }
+      if (tab.dataset.tab === 'platforms') {
+        renderPlatforms();
+      }
     });
   });
 }
@@ -912,6 +915,75 @@ function escapeText(value) {
   const el = document.createElement('div');
   el.textContent = String(value == null ? '' : value);
   return el.innerHTML;
+}
+
+// ── Supported Platforms ──────────────────────────────
+
+/**
+ * Returns the set of hostnames the manifest auto-injects content scripts into.
+ * Used to mark a platform "Live" only when its adapter actually runs in this build.
+ */
+function getInjectedHostPatterns() {
+  try {
+    const manifest = chrome.runtime.getManifest();
+    const patterns = [];
+    for (const cs of manifest.content_scripts || []) {
+      for (const match of cs.matches || []) patterns.push(match.toLowerCase());
+    }
+    return patterns;
+  } catch {
+    return [];
+  }
+}
+
+/** True if any manifest match pattern covers one of the platform's hosts. */
+function platformIsLive(platform, patterns) {
+  return platform.hosts.some(host => {
+    // strip any path segment (e.g. "revolut.com/careers" → "revolut.com")
+    const bareHost = host.split('/')[0];
+    return patterns.some(p => p.includes('://') && hostInPattern(bareHost, p));
+  });
+}
+
+function hostInPattern(host, pattern) {
+  // pattern looks like "https://*.example.com/*" or "https://jobs.example.com/*"
+  const m = /^[a-z]+:\/\/([^/]+)/.exec(pattern);
+  if (!m) return false;
+  const patternHost = m[1].replace(/^\*\./, '').replace(/^\*/, '');
+  return patternHost === host || patternHost.endsWith('.' + host) || host.endsWith('.' + patternHost) || host === patternHost;
+}
+
+function renderPlatforms() {
+  const container = document.getElementById('platforms-content');
+  const countEl = document.getElementById('platforms-count');
+  if (!container) return;
+
+  const platforms = AAM.SUPPORTED_PLATFORMS || [];
+  const patterns = getInjectedHostPatterns();
+
+  const rows = platforms.map(p => {
+    const live = platformIsLive(p, patterns);
+    const status = live ? 'live' : 'ready';
+    const statusLabel = live ? 'Live' : 'Adapter ready';
+    const hosts = p.hosts.map(h => `<code>${escapeText(h)}</code>`).join(' ');
+    return `
+      <div class="platform-row">
+        <div class="platform-main">
+          <span class="platform-name">${escapeText(p.name)}</span>
+          <span class="platform-hosts">${hosts}</span>
+        </div>
+        <span class="platform-status platform-status-${status}">${statusLabel}</span>
+      </div>`;
+  });
+
+  const liveCount = platforms.filter(p => platformIsLive(p, patterns)).length;
+  if (countEl) {
+    countEl.textContent = `${liveCount} live · ${platforms.length} total`;
+  }
+
+  container.innerHTML = rows.length
+    ? `<div class="platform-list">${rows.join('')}</div>`
+    : '<p class="empty-state">No platforms registered.</p>';
 }
 
 // ── Utilities ───────────────────────────────────────
