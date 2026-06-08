@@ -39,6 +39,7 @@
       <button class="tab" data-tab="professional">Professional</button>
       <button class="tab" data-tab="additional">Additional</button>
       <button class="tab" data-tab="settings">Settings</button>
+      <button class="tab" data-tab="account">Account</button>
       <button class="tab" data-tab="history">Application History</button>
       <button class="tab" data-tab="mappings">Learned Mappings</button>
     </nav>
@@ -115,6 +116,47 @@
         </div>
       </div>
 
+      <!-- Account Tab -->
+      <div class="tab-panel" id="panel-account">
+        <div class="panel-header">
+          <h2>Account</h2>
+          <p>Sign in to sync your profile across devices. Sensitive fields stay local only.</p>
+        </div>
+
+        <div id="account-signed-out">
+          <div id="account-email-step">
+            <div class="form-group" style="max-width:380px">
+              <label for="account-email">Email address</label>
+              <input type="email" id="account-email" placeholder="you@example.com" autocomplete="email">
+            </div>
+            <button type="button" id="btn-send-magic-link" class="btn btn-primary">Send sign-in code</button>
+          </div>
+
+          <div id="account-otp-step" class="hidden">
+            <p style="margin-bottom:12px">Check your email for a 6-digit code.</p>
+            <div class="form-group" style="max-width:200px">
+              <label for="account-otp">6-digit code</label>
+              <input type="text" id="account-otp" placeholder="123456" maxlength="6"
+                autocomplete="one-time-code" inputmode="numeric">
+            </div>
+            <div style="display:flex;gap:8px">
+              <button type="button" id="btn-verify-otp" class="btn btn-primary">Verify code</button>
+              <button type="button" id="btn-resend-otp" class="btn btn-outline">Resend</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="account-signed-in" class="hidden">
+          <div class="setting-item" style="border:none;padding:0;margin-bottom:16px">
+            <div class="setting-info">
+              <span class="setting-label">Signed in as <strong id="account-email-display"></strong></span>
+              <span class="setting-desc">Profile is synced to your account (sensitive fields remain local).</span>
+            </div>
+          </div>
+          <button type="button" id="btn-sign-out" class="btn btn-outline">Sign out</button>
+        </div>
+      </div>
+
       <!-- Application History Tab -->
       <div class="tab-panel" id="panel-history">
         <div class="panel-header">
@@ -159,7 +201,7 @@
       <!-- Save button (for profile tabs) -->
       <div class="form-actions" id="form-actions">
         <button type="submit" class="btn btn-primary" id="btn-save">Save Profile</button>
-        <span class="save-hint">Profile is stored locally in your browser.</span>
+        <span class="save-hint" id="save-hint">Profile is stored locally in your browser.</span>
       </div>
     </form>
 

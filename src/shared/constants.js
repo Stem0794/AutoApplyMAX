@@ -12,6 +12,7 @@ AAM.CONSTANTS = {
   STORAGE_SCHEMA_VERSION: 'aam_schema_version',
   STORAGE_COMMUNITY_SESSION: 'aam_community_session',
   STORAGE_INSTALLATION_ID: 'aam_installation_id',
+  STORAGE_USER_SESSION: 'aam_user_session',
   SCHEMA_VERSION: 2,
   MAX_HISTORY_ENTRIES: 1000,
   HISTORY_PAGE_SIZE: 50,
@@ -70,6 +71,10 @@ AAM.CONSTANTS = {
     DOWNLOAD_RESUME: 'aam:download_resume',
     SAVE_RESUME: 'aam:save_resume',
     SUBMIT_MAPPINGS: 'aam:submit_mappings',
+    SEND_MAGIC_LINK: 'aam:send_magic_link',
+    VERIFY_OTP: 'aam:verify_otp',
+    SIGN_OUT: 'aam:sign_out',
+    GET_AUTH_STATE: 'aam:get_auth_state',
   },
 };
 

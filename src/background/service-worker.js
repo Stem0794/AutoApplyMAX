@@ -56,6 +56,18 @@ async function handleMessage(message, sender) {
     case AAM.CONSTANTS.MSG.SUBMIT_MAPPINGS:
       assertExtensionPageSender(sender);
       return submitMappings(message.mappings);
+    case AAM.CONSTANTS.MSG.SEND_MAGIC_LINK:
+      assertExtensionPageSender(sender);
+      return sendMagicLink(message.email);
+    case AAM.CONSTANTS.MSG.VERIFY_OTP:
+      assertExtensionPageSender(sender);
+      return verifyOTP(message.email, message.token);
+    case AAM.CONSTANTS.MSG.SIGN_OUT:
+      assertExtensionPageSender(sender);
+      return signOut();
+    case AAM.CONSTANTS.MSG.GET_AUTH_STATE:
+      assertExtensionPageSender(sender);
+      return getAuthState();
     default:
       return { error: 'Unsupported message type' };
   }
@@ -137,7 +149,7 @@ async function handleStorageOperation(message, sender) {
 
   switch (operation) {
     case 'getProfile': {
-      const profile = await getProfile();
+      const profile = fromContent ? await getProfile() : await getProfileMergedWithCloud();
       return fromContent ? sanitizeAutofillProfile(profile) : sanitizeStoredProfile(profile);
     }
     case 'saveProfile':
@@ -239,6 +251,9 @@ async function saveProfile(input) {
   const resumeAsset = isResumeMetadata(input.resumeAsset) ? input.resumeAsset : current.resumeAsset;
   if (resumeAsset) clean.resumeAsset = resumeAsset;
   await chrome.storage.local.set({ [AAM.CONSTANTS.STORAGE_PROFILE]: clean });
+  getUserSession()
+    .then(session => session && syncProfileToCloud(clean, session))
+    .catch(() => {});
   return clean;
 }
 
@@ -645,4 +660,173 @@ async function persistCommunitySession(raw) {
     [AAM.CONSTANTS.STORAGE_COMMUNITY_SESSION]: session,
   });
   return session;
+}
+
+// ── User Auth (Magic Link / OTP) ─────────────────────
+
+const CLOUD_SYNC_FIELDS = new Set([
+  'salutation', 'firstName', 'lastName', 'fullName', 'email',
+  'phoneCountryCode', 'phone', 'address', 'city', 'state', 'zip', 'country',
+  'linkedinUrl', 'githubUrl', 'portfolioUrl', 'currentTitle', 'currentCompany',
+  'yearsExperience', 'education', 'preferredLocations', 'skills', 'englishLevel',
+  'startDate', 'workAuthorization', 'sponsorshipRequirement', 'howDidYouHear',
+]);
+
+async function sendMagicLink(email) {
+  if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    throw new Error('Invalid email address');
+  }
+  const response = await fetch(new URL('/auth/v1/otp', AAM.CONSTANTS.COMMUNITY_API_URL), {
+    method: 'POST',
+    headers: {
+      apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email: email.trim(), create_user: true }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.msg || err.error_description || 'Failed to send sign-in code');
+  }
+  return { sent: true };
+}
+
+async function verifyOTP(email, token) {
+  if (!email || !token || typeof token !== 'string' || !/^\d{6}$/.test(token.trim())) {
+    throw new Error('Enter the 6-digit code from your email');
+  }
+  const response = await fetch(new URL('/auth/v1/verify', AAM.CONSTANTS.COMMUNITY_API_URL), {
+    method: 'POST',
+    headers: {
+      apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ type: 'email', email: email.trim(), token: token.trim() }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.msg || err.error_description || 'Invalid or expired code');
+  }
+  const raw = await response.json();
+  return persistUserSession(raw);
+}
+
+async function signOut() {
+  const session = await getUserSession().catch(() => null);
+  if (session) {
+    fetch(new URL('/auth/v1/logout', AAM.CONSTANTS.COMMUNITY_API_URL), {
+      method: 'POST',
+      headers: {
+        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    }).catch(() => {});
+  }
+  await chrome.storage.local.remove(AAM.CONSTANTS.STORAGE_USER_SESSION);
+  return { signedOut: true };
+}
+
+async function getUserSession() {
+  const stored = await getStorageValue(AAM.CONSTANTS.STORAGE_USER_SESSION, null);
+  if (!stored?.accessToken) return null;
+  if (Number(stored.expiresAt) > Date.now() + 60000) return stored;
+
+  if (stored.refreshToken) {
+    const response = await fetch(
+      new URL('/auth/v1/token?grant_type=refresh_token', AAM.CONSTANTS.COMMUNITY_API_URL),
+      {
+        method: 'POST',
+        headers: {
+          apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: stored.refreshToken }),
+      }
+    );
+    if (response.ok) {
+      const raw = await response.json();
+      return persistUserSession(raw);
+    }
+  }
+
+  await chrome.storage.local.remove(AAM.CONSTANTS.STORAGE_USER_SESSION);
+  return null;
+}
+
+async function persistUserSession(raw) {
+  const session = {
+    accessToken: raw.access_token,
+    refreshToken: raw.refresh_token,
+    expiresAt: Date.now() + Number(raw.expires_in || 3600) * 1000,
+    userId: raw.user?.id,
+    email: raw.user?.email,
+  };
+  await chrome.storage.local.set({ [AAM.CONSTANTS.STORAGE_USER_SESSION]: session });
+  return session;
+}
+
+async function getAuthState() {
+  const session = await getUserSession().catch(() => null);
+  if (!session) return { signedIn: false };
+  return { signedIn: true, email: session.email, userId: session.userId };
+}
+
+async function syncProfileToCloud(profile, session) {
+  const cloudData = {};
+  for (const key of CLOUD_SYNC_FIELDS) {
+    if (typeof profile[key] === 'string' && profile[key]) {
+      cloudData[key] = profile[key];
+    }
+  }
+  const response = await fetch(
+    new URL('/rest/v1/profiles', AAM.CONSTANTS.COMMUNITY_API_URL),
+    {
+      method: 'POST',
+      headers: {
+        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({ user_id: session.userId, data: cloudData }),
+    }
+  );
+  if (!response.ok) {
+    console.warn('[AutoApplyMAX] Cloud profile sync failed:', await response.text());
+  }
+}
+
+async function fetchProfileFromCloud(session) {
+  const response = await fetch(
+    new URL(`/rest/v1/profiles?user_id=eq.${session.userId}&select=data`, AAM.CONSTANTS.COMMUNITY_API_URL),
+    {
+      headers: {
+        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        Accept: 'application/json',
+      },
+    }
+  );
+  if (!response.ok) return null;
+  const rows = await response.json();
+  return rows[0]?.data ?? null;
+}
+
+async function getProfileMergedWithCloud() {
+  const local = await getProfile();
+  const session = await getUserSession().catch(() => null);
+  if (!session) return local;
+
+  const cloud = await fetchProfileFromCloud(session).catch(() => null);
+  if (!cloud) return local;
+
+  // Start with cloud (non-sensitive fields), overlay local values on top
+  const merged = { ...cloud };
+  for (const [key, value] of Object.entries(local)) {
+    if (value !== undefined && value !== null && value !== '') {
+      merged[key] = value;
+    }
+  }
+  return merged;
 }

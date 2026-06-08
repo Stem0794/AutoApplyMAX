@@ -12,10 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
   loadMappings();
   loadHistory();
+  loadAccount();
   initEventListeners();
 });
 
 let _currentProfile = {};
+let _authState = { signedIn: false };
 
 // ── Tab Navigation ──────────────────────────────────
 
@@ -41,6 +43,9 @@ function initTabs() {
       }
       if (tab.dataset.tab === 'history') {
         loadHistory();
+      }
+      if (tab.dataset.tab === 'account') {
+        loadAccount();
       }
     });
   });
@@ -172,7 +177,8 @@ async function saveProfile() {
   try {
     await AAM.Storage.saveProfile(profile);
     _currentProfile = profile;
-    showStatus('Profile saved successfully!', 'success');
+    const msg = _authState.signedIn ? 'Profile saved and synced to your account!' : 'Profile saved successfully!';
+    showStatus(msg, 'success');
   } catch (err) {
     showStatus('Failed to save profile: ' + err.message, 'error');
   }
@@ -533,6 +539,18 @@ function initEventListeners() {
     }
   });
 
+  // Account tab
+  document.getElementById('btn-send-magic-link').addEventListener('click', handleSendMagicLink);
+  document.getElementById('btn-verify-otp').addEventListener('click', handleVerifyOTP);
+  document.getElementById('btn-resend-otp').addEventListener('click', () => {
+    document.getElementById('account-email-step').classList.remove('hidden');
+    document.getElementById('account-otp-step').classList.add('hidden');
+    const btn = document.getElementById('btn-send-magic-link');
+    btn.disabled = false;
+    btn.textContent = 'Send sign-in code';
+  });
+  document.getElementById('btn-sign-out').addEventListener('click', handleSignOut);
+
   // Status bar close
   document.getElementById('status-close').addEventListener('click', hideStatus);
   // File input change listener for resume file to update displayed name
@@ -544,6 +562,104 @@ function initEventListeners() {
         fileNameSpan.textContent = e.target.files.length > 0 ? e.target.files[0].name : 'No file selected';
       }
     });
+  }
+}
+
+// ── Account / Auth ────────────────────────────────────
+
+let _pendingEmail = '';
+
+async function loadAccount() {
+  try {
+    const state = await chrome.runtime.sendMessage({ type: AAM.CONSTANTS.MSG.GET_AUTH_STATE });
+    if (state?.error) throw new Error(state.error);
+    _authState = state || { signedIn: false };
+    renderAccountState(_authState);
+  } catch (err) {
+    console.warn('Failed to load auth state:', err);
+  }
+}
+
+function renderAccountState(state) {
+  const signedOut = document.getElementById('account-signed-out');
+  const signedIn = document.getElementById('account-signed-in');
+  if (!signedOut || !signedIn) return;
+
+  const hint = document.getElementById('save-hint');
+
+  if (state?.signedIn) {
+    signedOut.classList.add('hidden');
+    signedIn.classList.remove('hidden');
+    document.getElementById('account-email-display').textContent = state.email || '';
+    if (hint) hint.textContent = 'Profile is saved locally and synced to your account.';
+  } else {
+    signedOut.classList.remove('hidden');
+    signedIn.classList.add('hidden');
+    document.getElementById('account-email-step').classList.remove('hidden');
+    document.getElementById('account-otp-step').classList.add('hidden');
+    _pendingEmail = '';
+    if (hint) hint.textContent = 'Profile is stored locally in your browser.';
+  }
+}
+
+async function handleSendMagicLink() {
+  const email = document.getElementById('account-email').value.trim();
+  const btn = document.getElementById('btn-send-magic-link');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  try {
+    const result = await chrome.runtime.sendMessage({ type: AAM.CONSTANTS.MSG.SEND_MAGIC_LINK, email });
+    if (result?.error) throw new Error(result.error);
+    _pendingEmail = email;
+    document.getElementById('account-email-step').classList.add('hidden');
+    document.getElementById('account-otp-step').classList.remove('hidden');
+    document.getElementById('account-otp').focus();
+    showStatus('Code sent! Check your email.', 'success');
+  } catch (err) {
+    showStatus('Failed to send code: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Send sign-in code';
+  }
+}
+
+async function handleVerifyOTP() {
+  const token = document.getElementById('account-otp').value.trim();
+  const btn = document.getElementById('btn-verify-otp');
+  btn.disabled = true;
+  btn.textContent = 'Verifying...';
+
+  try {
+    const result = await chrome.runtime.sendMessage({ type: AAM.CONSTANTS.MSG.VERIFY_OTP, email: _pendingEmail, token });
+    if (result?.error) throw new Error(result.error);
+    _authState = { signedIn: true, email: result.email };
+    showStatus('Signed in! Your profile is now syncing.', 'success');
+    renderAccountState(_authState);
+    await loadProfile();
+  } catch (err) {
+    showStatus('Verification failed: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Verify code';
+  }
+}
+
+async function handleSignOut() {
+  const btn = document.getElementById('btn-sign-out');
+  btn.disabled = true;
+  btn.textContent = 'Signing out...';
+
+  try {
+    await chrome.runtime.sendMessage({ type: AAM.CONSTANTS.MSG.SIGN_OUT });
+    _authState = { signedIn: false };
+    document.getElementById('account-email').value = '';
+    document.getElementById('account-otp').value = '';
+    showStatus('Signed out.', 'success');
+    renderAccountState(_authState);
+  } catch (err) {
+    showStatus('Sign out failed: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign out';
   }
 }
 
