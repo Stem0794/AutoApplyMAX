@@ -55,6 +55,7 @@ test('trusted prefill fills ordinary fields but leaves sensitive fields for conf
   await expect(page.locator('#salary')).toHaveValue('');
   await expect(page.locator('.aam-download-btn')).toBeVisible();
   await expect(page.locator('[data-filecontent]')).toHaveCount(0);
-  await page.getByRole('button', { name: /Fix .* Review Fields/ }).click();
-  await expect(page.getByText('Confirmation Required')).toBeVisible();
+  // The fields panel auto-expands when there are review fields; the sensitive
+  // salary field is held back behind an explicit confirmation button.
+  await expect(page.getByRole('button', { name: 'Fill this sensitive field' })).toBeVisible();
 });

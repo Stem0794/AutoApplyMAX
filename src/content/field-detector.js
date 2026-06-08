@@ -14,40 +14,37 @@ AAM.FieldDetector = {
   getFormFields() {
     const selectors = [
       'input[type="text"]', 'input[type="email"]', 'input[type="tel"]', 'input[type="url"]',
-      'input[type="number"]', 'input[type="search"]', 'input[type="file"]', 'input:not([type])',
-      'textarea', 'select', '[contenteditable="true"]', '[role="textbox"]', '[role="combobox"]'
+      'input[type="number"]', 'input[type="search"]', 'input[type="file"]',
+      'input[type="date"]', 'input[type="month"]',
+      'input[type="checkbox"]', 'input[type="radio"]',
+      'input:not([type])',
+      'textarea', 'select', '[contenteditable="true"]', '[role="textbox"]', '[role="combobox"]',
     ].join(', ');
 
+    const seen = new WeakSet();
     const allFields = [];
 
-    // Recursive function to search through normal DOM and Shadow DOMs
     function traverse(root) {
       if (!root) return;
-
-      // Find fields in the current root
-      const nodes = root.querySelectorAll(selectors);
-      nodes.forEach(node => allFields.push(node));
-
-      // Find all elements in current root that might have a shadowRoot
-      const allElements = root.querySelectorAll('*');
-      allElements.forEach(el => {
-        if (el.shadowRoot) {
-          traverse(el.shadowRoot);
-        }
+      root.querySelectorAll(selectors).forEach(node => {
+        if (!seen.has(node)) { seen.add(node); allFields.push(node); }
+      });
+      root.querySelectorAll('*').forEach(el => {
+        if (el.shadowRoot) traverse(el.shadowRoot);
       });
     }
 
-    // Start traversal from the main document
     traverse(document);
 
-    // Filter out hidden, disabled, or very small fields
     return allFields.filter(el => {
       if (el.disabled || el.readOnly) return false;
       if (el.type === 'hidden') return false;
-
-      // File inputs are often hidden by modern ATS
       if (el.tagName === 'INPUT' && el.type === 'file') return true;
-
+      // Checkboxes/radios can be tiny — only check visibility
+      if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) {
+        const s = window.getComputedStyle(el);
+        return s.display !== 'none' && s.visibility !== 'hidden';
+      }
       const rect = el.getBoundingClientRect();
       if (rect.width < 10 || rect.height < 10) return false;
       const style = window.getComputedStyle(el);
@@ -65,7 +62,7 @@ AAM.FieldDetector = {
   getFieldContext(field) {
     const parts = [];
 
-    // 1. Direct attributes (highly specific)
+    // 1. Direct attributes
     if (field.name) parts.push(field.name);
     if (field.id) parts.push(field.id);
     if (field.placeholder) parts.push(field.placeholder);
@@ -75,50 +72,69 @@ AAM.FieldDetector = {
 
     const ariaLabelledBy = field.getAttribute('aria-labelledby');
     if (ariaLabelledBy) {
-      const labelEl = document.getElementById(ariaLabelledBy);
-      if (labelEl) parts.push(labelEl.textContent.trim());
+      for (const id of ariaLabelledBy.split(/\s+/)) {
+        const el = document.getElementById(id);
+        if (el) parts.push(el.textContent.trim());
+      }
+    }
+
+    const ariaDescribedBy = field.getAttribute('aria-describedby');
+    if (ariaDescribedBy) {
+      for (const id of ariaDescribedBy.split(/\s+/)) {
+        const el = document.getElementById(id);
+        if (el) {
+          const t = el.textContent.trim();
+          if (t.length < 100) parts.push(t);
+        }
+      }
     }
 
     if (field.title) parts.push(field.title);
     if (field.getAttribute('autocomplete')) parts.push(field.getAttribute('autocomplete'));
 
-    // 2. Associated <label> via 'for' attribute
+    // 2. Semantic data-* attributes common in modern ATS
+    for (const attr of ['data-testid', 'data-test', 'data-qa', 'data-cy', 'data-label', 'data-field-name', 'data-key', 'data-field']) {
+      const v = field.getAttribute(attr);
+      if (v) parts.push(v.replace(/[-_]/g, ' '));
+    }
+
+    // 3. Associated <label> via 'for' attribute
     if (field.id) {
       const label = document.querySelector(`label[for="${CSS.escape(field.id)}"]`);
       if (label) parts.push(label.textContent.trim());
     }
 
-    // 3. Parent label wrapping the field
+    // 4. Parent label wrapping the field
     const parentLabel = field.closest('label');
     if (parentLabel) parts.push(parentLabel.textContent.trim());
 
-    // 4. Closest preceding label-like element
-    // This is often more accurate than gathering all siblings
-    let prev = field.previousElementSibling;
-    while (prev) {
-      const tag = prev.tagName.toLowerCase();
-      if (['label', 'span', 'div', 'p', 'h3', 'h4'].includes(tag)) {
-        const text = prev.textContent.trim();
-        if (text && text.length < 50) {
-          parts.push(text);
-          break; // Only take the closest one
+    // 5. Walk up to 3 ancestor levels looking for preceding label-like siblings
+    //    and data-* attributes on container elements.
+    let el = field;
+    let labelFound = false;
+    for (let depth = 0; depth < 3 && el; depth++) {
+      // data-* on ancestor containers (e.g., Workday wraps fields in labeled divs)
+      for (const attr of ['data-field-name', 'data-key', 'data-qa', 'data-testid', 'data-label']) {
+        const v = el.getAttribute(attr);
+        if (v) parts.push(v.replace(/[-_]/g, ' '));
+      }
+      // Closest preceding sibling that looks like a label
+      if (!labelFound) {
+        let prev = el.previousElementSibling;
+        while (prev) {
+          const tag = prev.tagName.toLowerCase();
+          if (['label', 'span', 'div', 'p', 'h3', 'h4', 'h5', 'th', 'dt'].includes(tag)) {
+            const text = prev.textContent.trim();
+            if (text && text.length < 80) {
+              parts.push(text);
+              labelFound = true;
+              break;
+            }
+          }
+          prev = prev.previousElementSibling;
         }
       }
-      prev = prev.previousElementSibling;
-    }
-
-    // 5. Parent's preceding sibling (common for table-like layouts)
-    const parent = field.parentElement;
-    if (parent && !parentLabel) {
-      let parentPrev = parent.previousElementSibling;
-      while (parentPrev) {
-        const text = parentPrev.textContent.trim();
-        if (text && text.length < 50) {
-          parts.push(text);
-          break;
-        }
-        parentPrev = parentPrev.previousElementSibling;
-      }
+      el = el.parentElement;
     }
 
     // 6. Closest fieldset legend
@@ -145,26 +161,38 @@ AAM.FieldDetector = {
     // 2. Parent label
     const parentLabel = field.closest('label');
     if (parentLabel && parentLabel.textContent.trim()) {
-      // Remove the field's own text if it's inside the label
       return parentLabel.textContent.replace(field.textContent, '').trim();
     }
     // 3. aria-label
     const ariaLabel = field.getAttribute('aria-label');
     if (ariaLabel) return ariaLabel;
 
-    // 4. placeholder
+    // 4. aria-labelledby (multi-ID support)
+    const ariaLabelledBy = field.getAttribute('aria-labelledby');
+    if (ariaLabelledBy) {
+      const texts = ariaLabelledBy.split(/\s+/)
+        .map(id => document.getElementById(id)?.textContent.trim())
+        .filter(Boolean);
+      if (texts.length) return texts.join(' ');
+    }
+
+    // 5. placeholder
     if (field.placeholder) return field.placeholder;
 
-    // 5. Closest preceding text
+    // 6. Closest preceding text
     let prev = field.previousElementSibling;
     if (prev && prev.textContent.trim() && prev.textContent.trim().length < 50) {
       return prev.textContent.trim();
     }
 
-    // 6. Name or ID as last resort (cleaned up)
+    // 7. data-label / data-field-name
+    const dataLabel = field.getAttribute('data-label') || field.getAttribute('data-field-name');
+    if (dataLabel) return dataLabel.replace(/[-_]/g, ' ');
+
+    // 8. Name or ID as last resort (cleaned up)
     const raw = field.getAttribute('name') || field.id || '';
     if (raw) {
-      return raw.replace(/rec-form_/, '').replace(/_/g, ' ').trim();
+      return raw.replace(/rec-form_/, '').replace(/[-_]/g, ' ').trim();
     }
 
     return 'Unnamed Field';
@@ -199,6 +227,23 @@ AAM.FieldDetector = {
         if (kw.includes(' ')) weight += 0.15;
 
         score = Math.max(score, weight);
+      }
+    }
+
+    // Disambiguate firstName / lastName / fullName
+    if (fieldDef.key === 'firstName') {
+      if (/\b(last|sur|family|apellido|nachname|cognome)\b/.test(ctx)) score = Math.min(score, 0.1);
+      if (/\bfull[\s_-]?(name|nom|nombre)\b/.test(ctx)) score = Math.min(score, 0.15);
+    }
+    if (fieldDef.key === 'lastName') {
+      if (/\b(first|given|prénom|prenom|vorname)\b/.test(ctx) && !/\b(last|sur|family)\b/.test(ctx)) {
+        score = Math.min(score, 0.1);
+      }
+      if (/\bfull[\s_-]?(name|nom|nombre)\b/.test(ctx)) score = Math.min(score, 0.15);
+    }
+    if (fieldDef.key === 'fullName') {
+      if (/\b(first name|last name|given name|surname)\b/.test(ctx) && !/\bfull\b/.test(ctx)) {
+        score = Math.min(score, 0.1);
       }
     }
 
@@ -280,6 +325,15 @@ AAM.FieldDetector = {
       return `[data-automation-id="${CSS.escape(autoId)}"]`;
     }
 
+    // Try test/QA id attributes common across ATS platforms
+    for (const attr of ['data-testid', 'data-test-id', 'data-qa', 'data-cy']) {
+      const v = el.getAttribute(attr);
+      if (v) {
+        const matches = document.querySelectorAll(`[${attr}="${CSS.escape(v)}"]`);
+        if (matches.length === 1) return `[${attr}="${CSS.escape(v)}"]`;
+      }
+    }
+
     // Fall back to nth-child path
     const path = [];
     let current = el;
@@ -333,11 +387,15 @@ AAM.FieldDetector = {
   detectFields(siteMappings = {}, knownMappings = []) {
     const fields = this.getFormFields();
     const results = [];
+    const seenSelectors = new Set();
     const localMappings = siteMappings.localMappings || {};
     const communityMappings = siteMappings.communityMappings || {};
 
     for (const field of fields) {
       const selector = this.buildSelector(field);
+      // Deduplicate: the same element might appear via both document and Shadow DOM traversal
+      if (seenSelectors.has(selector)) continue;
+      seenSelectors.add(selector);
       const signature = this.buildSignature(field);
       const context = this.getFieldContext(field);
       const displayLabel = this.getDisplayLabel(field);

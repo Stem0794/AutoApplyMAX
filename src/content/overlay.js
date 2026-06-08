@@ -24,193 +24,263 @@ AAM.Overlay = {
    * @param {string} notice - optional banner shown above the stats (e.g. drift nudge)
    */
   show(stats, detectedFields = [], siteKey = '', notice = '') {
-    const reviewFields = (detectedFields || []).filter(
+    const allFields = detectedFields || [];
+    const reviewFields = allFields.filter(
       f => f.source === 'unmatched' ||
         f.confidence < AAM.CONSTANTS.CONFIDENCE_LOW ||
         ['missing_value', 'requires_confirmation', 'not_autofillable'].includes(f.status)
     );
 
-    const profileOptions = AAM.PROFILE_FIELDS.filter(f => f.autofillable).map(f =>
-      `<option value="${f.key}">${f.label}</option>`
-    ).join('');
+    // Review fields first, then the rest
+    const sortedFields = [
+      ...reviewFields,
+      ...allFields.filter(f => !reviewFields.includes(f)),
+    ];
+
+    // Build grouped profile options for the zap picker
+    const groupOrder = ['personal', 'professional', 'additional'];
+    const groupLabels = { personal: 'Personal', professional: 'Professional', additional: 'Application' };
+    const profileGroups = {};
+    for (const f of AAM.PROFILE_FIELDS) {
+      if (!f.autofillable) continue;
+      if (!profileGroups[f.group]) profileGroups[f.group] = [];
+      profileGroups[f.group].push(f);
+    }
+    const buildOptions = selectedKey => [
+      '<option value="">-- Map this field --</option>',
+      ...groupOrder.filter(g => profileGroups[g]).map(g =>
+        `<optgroup label="${groupLabels[g]}">${
+          profileGroups[g].map(f =>
+            `<option value="${f.key}"${f.key === selectedKey ? ' selected' : ''}>${aamEscapeHtml(f.label)}</option>`
+          ).join('')
+        }</optgroup>`
+      ),
+      '<optgroup label="Missing a field?"><option value="__request__">&#10133; Request a new field…</option></optgroup>',
+    ].join('');
+
+    const makeFieldItem = (field, idx) => {
+      const isReview = reviewFields.includes(field);
+      const badgeClass = field.profileKey
+        ? `aam-badge-${field.source || 'heuristic'}`
+        : 'aam-badge-unmatched';
+      const badgeText = field.profileKey
+        ? aamEscapeHtml(field.profileKey)
+        : 'Unmatched';
+      const labelText = field.displayLabel || 'Field ' + (idx + 1);
+      return `
+        <div class="aam-field-item${isReview ? ' aam-field-review' : ''}"
+             data-field-index="${idx}"
+             data-label="${encodeURIComponent(labelText)}"
+             data-selector="${encodeURIComponent(field.selector || '')}"
+             data-signature="${encodeURIComponent(field.signature || '')}">
+          <div class="aam-field-row">
+            <span class="aam-field-label" title="${aamEscapeHtml(field.context || '')}">
+              ${aamEscapeHtml(labelText)}
+            </span>
+            <span class="aam-field-src-badge ${badgeClass}">${badgeText}</span>
+            <button class="aam-zap-btn" title="Map this field to a profile field">&#9889;</button>
+          </div>
+          <div class="aam-zap-picker" hidden>
+            <select class="aam-zap-select">${buildOptions(field.profileKey || '')}</select>
+            <div class="aam-zap-request" hidden>
+              <input type="text" class="aam-zap-req-label" maxlength="100"
+                     placeholder="New field name (e.g. Notice period)">
+              <input type="text" class="aam-zap-req-note" maxlength="200"
+                     placeholder="Optional: what kind of value goes here?">
+            </div>
+            <div class="aam-zap-actions">
+              <button class="aam-zap-confirm" disabled>&#9889; Match &amp; share</button>
+              <button class="aam-zap-cancel">&#10005; Cancel</button>
+            </div>
+            <p class="aam-zap-hint"></p>
+          </div>
+          ${field.status === 'requires_confirmation'
+            ? `<button type="button" class="aam-confirm-sensitive" data-field-index="${idx}">Fill this sensitive field</button>`
+            : ''}
+        </div>
+      `;
+    };
 
     const container = this._getOrCreateContainer();
     container.setAttribute('role', 'alert');
     container.setAttribute('aria-live', 'polite');
 
+    const fieldsToggleLabel = reviewFields.length > 0
+      ? `&#9889; Fix ${reviewFields.length} unmatched &amp; map fields &#8595;`
+      : `&#9889; Map fields &#8595;`;
+
     container.innerHTML = `
       <style>
         #aam-overlay {
-          position: fixed;
-          bottom: 24px;
-          right: 24px;
+          position: fixed; bottom: 24px; right: 24px;
           z-index: ${AAM.CONSTANTS.OVERLAY_Z};
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          font-size: 14px;
-          line-height: 1.5;
-          color: #1a1a1a;
+          font-size: 14px; line-height: 1.5; color: #1a1a1a;
           pointer-events: auto;
           animation: aamSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
-
         @keyframes aamSlideIn {
           from { transform: translateY(20px) scale(0.95); opacity: 0; }
-          to { transform: translateY(0) scale(1); opacity: 1; }
+          to   { transform: translateY(0) scale(1); opacity: 1; }
         }
-
         @keyframes aamSlideOut {
           from { transform: translateY(0) scale(1); opacity: 1; }
-          to { transform: translateY(20px) scale(0.95); opacity: 0; }
+          to   { transform: translateY(20px) scale(0.95); opacity: 0; }
         }
-
-        @keyframes aamFadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+        @keyframes aamFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes aamPulse {
+          0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0.4); }
+          70%  { box-shadow: 0 0 0 10px rgba(37,99,235,0); }
+          100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
         }
-
         #aam-overlay-card {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          border-radius: 16px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12), 0 2px 10px rgba(0, 0, 0, 0.05);
-          padding: 20px;
-          max-width: 380px;
-          min-width: 300px;
-          transition: all 0.3s ease;
+          background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.12), 0 2px 10px rgba(0,0,0,0.05);
+          padding: 20px; max-width: 380px; min-width: 300px;
         }
-
         #aam-overlay-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
+          display: flex; align-items: center; justify-content: space-between;
           margin-bottom: 16px;
         }
-
         #aam-overlay-title {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-weight: 700;
-          font-size: 16px;
-          color: #0f172a;
+          display: flex; align-items: center; gap: 10px;
+          font-weight: 700; font-size: 16px; color: #0f172a;
         }
-
         #aam-overlay-icon {
           width: 24px; height: 24px; border-radius: 50%;
           background: #10b981; display: flex; align-items: center;
           justify-content: center; color: white; font-size: 14px;
           font-weight: bold; flex-shrink: 0;
-          box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+          box-shadow: 0 2px 4px rgba(16,185,129,0.3);
         }
-
+        #aam-overlay-icon.aam-icon-review {
+          background: #f59e0b;
+          box-shadow: 0 2px 4px rgba(245,158,11,0.3);
+        }
         #aam-overlay-close {
           background: none; border: none; cursor: pointer;
           color: #94a3b8; font-size: 20px; padding: 4px;
           border-radius: 8px; transition: all 0.2s;
           display: flex; align-items: center; justify-content: center;
         }
-
         #aam-overlay-close:hover { background: #f1f5f9; color: #475569; }
-
         #aam-overlay-stats {
           display: flex; gap: 12px; margin-bottom: 16px;
           padding: 12px; background: #f8fafc; border-radius: 12px;
           border: 1px solid #f1f5f9;
         }
-
         .aam-stat { display: flex; flex-direction: column; align-items: center; flex: 1; }
         .aam-stat-number { font-size: 20px; font-weight: 800; color: #1e293b; }
         .aam-stat-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
         .aam-stat-filled .aam-stat-number { color: #10b981; }
         .aam-stat-review .aam-stat-number { color: #f59e0b; }
-
-        .aam-missing-badge {
-          font-size: 9px;
-          background: #fee2e2;
-          color: #b91c1c;
-          padding: 1px 6px;
-          border-radius: 4px;
-          margin-left: 6px;
-          text-transform: uppercase;
-          font-weight: 700;
-          display: inline-block;
-          vertical-align: middle;
-          border: 1px solid #fca5a5;
-        }
-
         #aam-overlay-notice {
-          display: flex;
-          gap: 8px;
-          align-items: flex-start;
-          font-size: 12px;
-          line-height: 1.4;
-          color: #92400e;
-          background: #fffbeb;
-          border: 1px solid #fde68a;
-          border-radius: 10px;
-          padding: 10px 12px;
-          margin-bottom: 14px;
+          display: flex; gap: 8px; align-items: flex-start;
+          font-size: 12px; line-height: 1.4; color: #92400e;
+          background: #fffbeb; border: 1px solid #fde68a;
+          border-radius: 10px; padding: 10px 12px; margin-bottom: 14px;
         }
         #aam-overlay-notice .aam-notice-icon { flex-shrink: 0; font-weight: 800; }
-
-        #aam-overlay-message { font-size: 13px; color: #475569; text-align: center; margin-bottom: 16px; line-height: 1.5; }
+        #aam-overlay-message {
+          font-size: 13px; color: #475569; text-align: center;
+          margin-bottom: 14px; line-height: 1.5;
+        }
         #aam-overlay-message strong { color: #1e293b; }
-        
-        #aam-train-toggle {
-          display: block; width: 100%; padding: 10px;
-          background: #ffffff; border: 1px solid #e2e8f0;
-          border-radius: 10px; color: #475569; font-size: 13px;
-          font-weight: 600; cursor: pointer; text-align: center;
-          transition: all 0.2s;
+
+        /* Fields panel */
+        #aam-fields-toggle {
+          display: block; width: 100%; padding: 9px 12px;
+          background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+          color: #475569; font-size: 13px; font-weight: 600;
+          cursor: pointer; text-align: left; transition: all 0.2s;
           box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
-        #aam-train-toggle:hover { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; }
-
-        #aam-train-content {
-          margin-top: 12px; max-height: 200px;
-          overflow-y: auto; display: none;
-          padding: 10px; background: #fafafa;
-          border-radius: 8px; border: 1px solid #eee;
+        #aam-fields-toggle:hover { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; }
+        #aam-fields-toggle.has-review { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+        #aam-fields-panel {
+          margin-top: 8px; max-height: 280px; overflow-y: auto;
+          display: flex; flex-direction: column; gap: 5px;
         }
-
-        .aam-train-item {
-          margin-bottom: 12px; padding: 12px;
-          border: 1px solid #f1f5f9;
-          background: #ffffff;
-          border-radius: 12px;
-          transition: all 0.2s;
+        .aam-field-item {
+          border: 1px solid #f1f5f9; border-radius: 10px;
+          background: #fff; overflow: hidden; transition: border-color 0.2s;
         }
-        .aam-train-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-color: #e2e8f0; }
-        .aam-train-item:last-child { margin-bottom: 4px; }
-        
-        .aam-train-label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-        .aam-train-label { font-weight: 700; font-size: 13px; color: #1e293b; flex: 1; }
-
-        .aam-matched-badge {
-          font-size: 10px; background: #e0f2fe; color: #0369a1;
-          padding: 1px 6px; border-radius: 4px; text-transform: uppercase;
-          font-weight: 700; border: 1px solid #bae6fd;
+        .aam-field-item.aam-field-review { border-color: #fde68a; background: #fffbeb; }
+        .aam-field-item.aam-field-done { border-color: #bbf7d0 !important; background: #f0fdf4 !important; }
+        .aam-field-row {
+          display: flex; align-items: center; gap: 6px; padding: 7px 10px;
         }
-
-        .aam-train-select {
-          width: 100%; padding: 8px; font-size: 13px;
+        .aam-field-label {
+          flex: 1; font-weight: 600; font-size: 12px; color: #1e293b;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .aam-field-src-badge {
+          font-size: 9px; padding: 2px 5px; border-radius: 4px;
+          font-weight: 700; text-transform: uppercase; flex-shrink: 0;
+        }
+        .aam-badge-adapter   { background: #dbeafe; color: #1d4ed8; }
+        .aam-badge-learned   { background: #d1fae5; color: #065f46; }
+        .aam-badge-heuristic { background: #e0f2fe; color: #0369a1; }
+        .aam-badge-community { background: #f3e8ff; color: #7c3aed; }
+        .aam-badge-unmatched { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+        .aam-zap-btn {
+          background: none; border: none; cursor: pointer;
+          font-size: 14px; padding: 2px 5px; border-radius: 6px;
+          color: #94a3b8; transition: all 0.2s; flex-shrink: 0; line-height: 1;
+        }
+        .aam-zap-btn:hover { color: #f59e0b; background: #fffbeb; }
+        .aam-field-review .aam-zap-btn { color: #d97706; }
+        .aam-field-review .aam-zap-btn:hover { background: #fef3c7; }
+        .aam-zap-picker {
+          padding: 8px 10px 10px; border-top: 1px solid #f1f5f9;
+          background: #f8fafc; display: flex; flex-direction: column; gap: 6px;
+        }
+        .aam-field-review .aam-zap-picker { border-top-color: #fde68a; }
+        .aam-zap-select {
+          width: 100%; padding: 6px 8px; font-size: 12px;
           border-radius: 8px; border: 1px solid #e2e8f0;
-          color: #1e293b; background: #f8fafc;
-          outline: none; transition: border-color 0.2s;
+          color: #1e293b; background: #fff; outline: none;
         }
-        .aam-train-select:focus { border-color: #3b82f6; background: #ffffff; }
-
-        @keyframes aamPulse {
-          0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
-          70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+        .aam-zap-select:focus { border-color: #3b82f6; }
+        .aam-zap-request { display: flex; flex-direction: column; gap: 6px; }
+        .aam-zap-request input {
+          width: 100%; padding: 6px 8px; font-size: 12px;
+          border-radius: 8px; border: 1px solid #e2e8f0;
+          color: #1e293b; background: #fff; outline: none; box-sizing: border-box;
         }
+        .aam-zap-request input:focus { border-color: #8b5cf6; }
+        .aam-zap-actions { display: flex; gap: 6px; }
+        .aam-zap-confirm {
+          flex: 1; padding: 6px 10px; font-size: 12px; font-weight: 700;
+          border: none; border-radius: 8px; cursor: pointer;
+          background: #f59e0b; color: #fff; transition: background 0.2s;
+        }
+        .aam-zap-confirm.local { background: #6366f1; }
+        .aam-zap-confirm.local:not(:disabled):hover { background: #4f46e5; }
+        .aam-zap-confirm.request { background: #8b5cf6; }
+        .aam-zap-confirm.request:not(:disabled):hover { background: #7c3aed; }
+        .aam-zap-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+        .aam-zap-confirm:not(:disabled):hover { background: #d97706; }
+        .aam-zap-cancel {
+          padding: 6px 10px; font-size: 12px; font-weight: 600;
+          border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;
+          background: #fff; color: #475569; transition: background 0.2s;
+        }
+        .aam-zap-cancel:hover { background: #f1f5f9; }
+        .aam-zap-hint { font-size: 11px; color: #64748b; margin: 0; min-height: 14px; }
+        .aam-confirm-sensitive {
+          display: block; width: calc(100% - 20px); margin: 0 10px 8px;
+          padding: 6px; font-size: 12px; font-weight: 600;
+          background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px;
+          color: #92400e; cursor: pointer; text-align: center; transition: background 0.2s;
+        }
+        .aam-confirm-sensitive:hover { background: #fde68a; }
       </style>
       <div id="aam-overlay-card">
         <div id="aam-overlay-header">
           <div id="aam-overlay-title">
-            <div id="aam-overlay-icon">&#10003;</div>
-            Autofill Complete
+            <div id="aam-overlay-icon"${reviewFields.length > 0 ? ' class="aam-icon-review"' : ''}>${reviewFields.length > 0 ? '!' : '&#10003;'}</div>
+            ${reviewFields.length > 0 ? `${reviewFields.length} field${reviewFields.length > 1 ? 's' : ''} need review` : 'Autofill Complete'}
           </div>
           <button id="aam-overlay-close" title="Dismiss">&times;</button>
         </div>
@@ -232,57 +302,37 @@ AAM.Overlay = {
         <div id="aam-overlay-message">
           <strong>Please review your info</strong> before manually submitting.
         </div>
-        
-        ${reviewFields.length > 0 ? `
-          <button id="aam-train-toggle">Fix ${reviewFields.length} Review Fields &darr;</button>
-          <div id="aam-train-content">
-            ${reviewFields.map((field, idx) => {
-      const matchedKey = field.profileKey || '';
-      return `
-              <div class="aam-train-item" data-review-index="${idx}" data-selector="${encodeURIComponent(field.selector)}">
-                <div class="aam-train-label-row">
-                  <span class="aam-train-label" title="${aamEscapeHtml(field.context || '')}">${aamEscapeHtml(field.displayLabel || 'Field ' + (idx + 1))}</span>
-                  ${matchedKey ? `<span class="aam-matched-badge">${matchedKey}</span>` : ''}
-                  ${field.status === 'missing_value' ? '<span class="aam-missing-badge">Missing Data</span>' : ''}
-                  ${field.status === 'requires_confirmation' ? '<span class="aam-missing-badge">Confirmation Required</span>' : ''}
-                </div>
-                ${field.status === 'requires_confirmation'
-                  ? '<button type="button" class="aam-confirm-sensitive">Fill this sensitive field</button>'
-                  : ''}
-                <select class="aam-train-select">
-                  <option value="">-- Map this field --</option>
-                  ${profileOptions.replace(`value="${matchedKey}"`, `value="${matchedKey}" selected`)}
-                </select>
-              </div>
-            `}).join('')}
+        ${sortedFields.length > 0 ? `
+          <button id="aam-fields-toggle" class="${reviewFields.length > 0 ? 'has-review' : ''}">
+            ${fieldsToggleLabel}
+          </button>
+          <div id="aam-fields-panel" ${reviewFields.length === 0 ? 'hidden' : ''}>
+            ${sortedFields.map((field, idx) => makeFieldItem(field, idx)).join('')}
           </div>
         ` : ''}
       </div>
     `;
 
-    // Toggle training content
-    const toggle = container.querySelector('#aam-train-toggle');
-    if (toggle) {
-      toggle.addEventListener('click', event => {
+    // Toggle fields panel
+    const fieldsToggle = container.querySelector('#aam-fields-toggle');
+    if (fieldsToggle) {
+      fieldsToggle.addEventListener('click', event => {
         if (!event.isTrusted) return;
-        const content = container.querySelector('#aam-train-content');
-        const isHidden = content.style.display === 'none' || !content.style.display;
-        content.style.display = isHidden ? 'block' : 'none';
-        toggle.innerHTML = isHidden ? 'Close Trainer &uarr;' : `Fix ${reviewFields.length} Review Fields &darr;`;
-
-        // Disable auto-dismiss when training
-        if (this._dismissTimer) {
-          clearTimeout(this._dismissTimer);
-          this._dismissTimer = null;
-        }
+        if (this._dismissTimer) { clearTimeout(this._dismissTimer); this._dismissTimer = null; }
+        const panel = container.querySelector('#aam-fields-panel');
+        const hidden = panel.hidden;
+        panel.hidden = !hidden;
+        const hasReview = reviewFields.length > 0;
+        fieldsToggle.innerHTML = !hidden
+          ? (hasReview ? `&#9889; Fix ${reviewFields.length} unmatched &amp; map fields &#8595;` : '&#9889; Map fields &#8595;')
+          : (hasReview ? `&#9889; Fix ${reviewFields.length} unmatched &amp; map fields &#8593;` : '&#9889; Map fields &#8593;');
       });
     }
 
-    // Handle hovering over training items to highlight fields
-    container.querySelectorAll('.aam-train-item').forEach(item => {
+    // Highlight field on hover
+    container.querySelectorAll('.aam-field-item').forEach(item => {
       const selector = decodeURIComponent(item.dataset.selector);
       const el = document.querySelector(selector);
-
       item.addEventListener('mouseenter', () => {
         if (el) {
           el.style.outline = '3px solid #3b82f6';
@@ -291,9 +341,8 @@ AAM.Overlay = {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       });
-
       item.addEventListener('mouseleave', () => {
-        if (el) {
+        if (el && !item.classList.contains('aam-field-done')) {
           el.style.outline = '';
           el.style.outlineOffset = '';
           el.style.animation = '';
@@ -301,46 +350,175 @@ AAM.Overlay = {
       });
     });
 
-    // Handle mapping selection
-    container.querySelectorAll('.aam-train-select').forEach(select => {
-      select.addEventListener('change', async (e) => {
-        if (!e.isTrusted) return;
-        const profileKey = e.target.value;
-        const item = e.target.closest('.aam-train-item');
-        const selector = decodeURIComponent(item.dataset.selector);
+    // ⚡ zap button — open/close picker
+    container.querySelectorAll('.aam-zap-btn').forEach(btn => {
+      btn.addEventListener('click', event => {
+        if (!event.isTrusted) return;
+        if (this._dismissTimer) { clearTimeout(this._dismissTimer); this._dismissTimer = null; }
+        const item = btn.closest('.aam-field-item');
+        const picker = item.querySelector('.aam-zap-picker');
+        const isOpen = !picker.hidden;
+        // Close all other pickers first
+        container.querySelectorAll('.aam-zap-picker').forEach(p => { p.hidden = true; });
+        picker.hidden = isOpen;
+        if (!isOpen) item.querySelector('.aam-zap-select').focus();
+      });
+    });
 
-        if (profileKey && siteKey) {
-          try {
-            const reviewIndex = Number(item.dataset.reviewIndex);
-            const field = reviewFields[reviewIndex];
-            await AAM.Storage.saveMapping(siteKey, selector, profileKey, field?.signature || '');
+    // Zap picker — select change
+    container.querySelectorAll('.aam-zap-select').forEach(select => {
+      select.addEventListener('change', () => {
+        const item = select.closest('.aam-field-item');
+        const confirmBtn = item.querySelector('.aam-zap-confirm');
+        const hint = item.querySelector('.aam-zap-hint');
+        const requestForm = item.querySelector('.aam-zap-request');
+        const key = select.value;
 
-            // Highlight the field we just mapped
-            const el = document.querySelector(selector);
-            if (el) {
-              el.style.outline = '';
-              el.style.animation = '';
-              el.style.boxShadow = '0 0 0 3px rgba(26, 127, 55, 0.5)';
-            }
-
-            // Remove the item from the list
-            item.style.opacity = '0.5';
-            item.style.pointerEvents = 'none';
-            e.target.disabled = true;
-          } catch (err) {
-            console.error('[AutoApplyMAX] Failed to save mapping:', err);
+        if (key === '__request__') {
+          // Reveal the new-field request form, prefill the suggested name.
+          requestForm.hidden = false;
+          const labelInput = requestForm.querySelector('.aam-zap-req-label');
+          if (!labelInput.value) {
+            labelInput.value = decodeURIComponent(item.dataset.label || '');
           }
+          labelInput.focus();
+          confirmBtn.textContent = '📨 Send request';
+          confirmBtn.className = 'aam-zap-confirm request';
+          confirmBtn.disabled = !labelInput.value.trim();
+          hint.textContent = 'Suggest a new profile field — sent to the maintainers, no values included.';
+          return;
+        }
+
+        requestForm.hidden = true;
+        confirmBtn.disabled = !key;
+        if (key && AAM.isCloudMappableProfileKey(key)) {
+          confirmBtn.textContent = '⚡ Match & share';
+          confirmBtn.className = 'aam-zap-confirm';
+          hint.textContent = 'Your correction is shared to improve detection for everyone.';
+        } else if (key) {
+          confirmBtn.textContent = '💾 Save locally';
+          confirmBtn.className = 'aam-zap-confirm local';
+          hint.textContent = 'Saved locally only — this field is never shared.';
+        } else {
+          confirmBtn.textContent = '⚡ Match & share';
+          confirmBtn.className = 'aam-zap-confirm';
+          hint.textContent = '';
         }
       });
     });
 
+    // Request form — enable the send button only when a name is entered
+    container.querySelectorAll('.aam-zap-req-label').forEach(input => {
+      input.addEventListener('input', () => {
+        const item = input.closest('.aam-field-item');
+        const select = item.querySelector('.aam-zap-select');
+        if (select.value === '__request__') {
+          item.querySelector('.aam-zap-confirm').disabled = !input.value.trim();
+        }
+      });
+    });
+
+    // Zap picker — cancel
+    container.querySelectorAll('.aam-zap-cancel').forEach(btn => {
+      btn.addEventListener('click', event => {
+        if (!event.isTrusted) return;
+        btn.closest('.aam-zap-picker').hidden = true;
+      });
+    });
+
+    // Zap picker — confirm & submit
+    container.querySelectorAll('.aam-zap-confirm').forEach(confirmBtn => {
+      confirmBtn.addEventListener('click', async event => {
+        if (!event.isTrusted) return;
+        const item = confirmBtn.closest('.aam-field-item');
+        const select = item.querySelector('.aam-zap-select');
+        const profileKey = select.value;
+        if (!profileKey) return;
+
+        const selector = decodeURIComponent(item.dataset.selector);
+        const signature = decodeURIComponent(item.dataset.signature);
+
+        // Branch: request a new field instead of mapping to an existing one.
+        if (profileKey === '__request__') {
+          const labelInput = item.querySelector('.aam-zap-req-label');
+          const noteInput = item.querySelector('.aam-zap-req-note');
+          const suggestedLabel = labelInput.value.trim();
+          if (!suggestedLabel) return;
+
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'Sending…';
+          try {
+            await AAM.Storage.requestField({
+              suggestedLabel,
+              note: noteInput.value.trim(),
+              siteKey,
+              signature,
+            });
+            item.querySelector('.aam-zap-picker').hidden = true;
+            const badge = item.querySelector('.aam-field-src-badge');
+            badge.className = 'aam-field-src-badge aam-badge-community';
+            badge.textContent = 'Requested';
+            const zapBtn = item.querySelector('.aam-zap-btn');
+            zapBtn.textContent = '✓';
+            zapBtn.style.color = '#8b5cf6';
+            setTimeout(() => { zapBtn.textContent = '⚡'; zapBtn.style.color = ''; }, 2000);
+          } catch (err) {
+            console.error('[AutoApplyMAX] Field request failed:', err);
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = '📨 Retry request';
+            item.querySelector('.aam-zap-hint').textContent = 'Request failed — please try again.';
+          }
+          return;
+        }
+
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Saving…';
+
+        try {
+          await AAM.Storage.saveMapping(siteKey, selector, profileKey, signature);
+
+          // Visual feedback on the actual form field
+          const el = document.querySelector(selector);
+          if (el) {
+            el.style.outline = '3px solid #10b981';
+            el.style.outlineOffset = '2px';
+            el.style.animation = '';
+          }
+
+          // Update the row
+          item.classList.remove('aam-field-review');
+          item.classList.add('aam-field-done');
+          const badge = item.querySelector('.aam-field-src-badge');
+          badge.className = 'aam-field-src-badge aam-badge-learned';
+          badge.textContent = profileKey;
+          item.querySelector('.aam-zap-picker').hidden = true;
+
+          // Brief "Saved ✓" feedback on the ⚡ button
+          const zapBtn = item.querySelector('.aam-zap-btn');
+          zapBtn.textContent = '✓';
+          zapBtn.style.color = '#10b981';
+          setTimeout(() => {
+            zapBtn.textContent = '⚡';
+            zapBtn.style.color = '';
+          }, 2000);
+        } catch (err) {
+          console.error('[AutoApplyMAX] Failed to save mapping:', err);
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = '⚡ Retry';
+          item.querySelector('.aam-zap-hint').textContent = 'Save failed — please try again.';
+        }
+      });
+    });
+
+    // Sensitive field fill button
     container.querySelectorAll('.aam-confirm-sensitive').forEach(button => {
       button.addEventListener('click', async event => {
         if (!event.isTrusted) return;
-        const item = event.currentTarget.closest('.aam-train-item');
-        const field = reviewFields[Number(item.dataset.reviewIndex)];
-        if (await AAM.FieldFiller.fillConfirmedField(field)) {
-          event.currentTarget.textContent = 'Filled';
+        const item = event.currentTarget.closest('.aam-field-item');
+        const fieldIndex = Number(item.dataset.fieldIndex);
+        const field = sortedFields[fieldIndex];
+        if (field && await AAM.FieldFiller.fillConfirmedField(field)) {
+          event.currentTarget.textContent = '✓ Filled';
           event.currentTarget.disabled = true;
         }
       });

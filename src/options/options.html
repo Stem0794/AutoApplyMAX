@@ -42,6 +42,7 @@
       <button class="tab" data-tab="account">Account</button>
       <button class="tab" data-tab="history">Application History</button>
       <button class="tab" data-tab="mappings">Learned Mappings</button>
+      <button class="tab" data-tab="admin" id="tab-admin" hidden>Admin</button>
     </nav>
 
     <!-- Form -->
@@ -105,14 +106,6 @@
             <span class="toggle"></span>
           </label>
 
-          <label class="setting-item">
-            <div class="setting-info">
-              <span class="setting-label">Contribute normalized field mappings</span>
-              <span class="setting-desc">Send non-sensitive field signatures for manual community review. Raw selectors and profile values are never sent.</span>
-            </div>
-            <input type="checkbox" id="setting-share-mappings">
-            <span class="toggle"></span>
-          </label>
         </div>
       </div>
 
@@ -184,6 +177,49 @@
         </div>
         <div class="mappings-actions">
           <button type="button" id="btn-clear-mappings" class="btn btn-danger">Clear All Mappings</button>
+        </div>
+      </div>
+
+      <!-- Admin Tab (reviewers only) -->
+      <div class="tab-panel" id="panel-admin">
+        <div class="panel-header">
+          <div class="panel-header-row">
+            <div>
+              <h2>Admin — Community Review</h2>
+              <p>Triage new-field requests and validate community mappings without touching SQL. Reviewer access only.</p>
+            </div>
+            <div class="panel-header-actions">
+              <button type="button" id="btn-export-schema" class="btn btn-outline" title="Export the current field schema plus open requests as JSON for an AI/dev to implement">Export field schema</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <div class="panel-header-row">
+            <h3>Pending community mappings</h3>
+            <button type="button" id="btn-refresh-mappings" class="btn btn-outline">Refresh</button>
+          </div>
+          <p class="setting-desc">Field-signature → profile-field proposals awaiting review. Approving promotes one into the canonical mapping served to everyone.</p>
+          <div id="admin-mappings-content"><p class="empty-state">Loading…</p></div>
+        </div>
+
+        <div class="admin-section">
+          <div class="panel-header-row">
+            <h3>New-field requests</h3>
+            <button type="button" id="btn-refresh-requests" class="btn btn-outline">Refresh</button>
+          </div>
+          <p class="setting-desc">Users requesting a profile field the app doesn't have yet. "Promote" generates a ready-to-paste field definition.</p>
+          <div id="admin-requests-content"><p class="empty-state">Loading…</p></div>
+        </div>
+
+        <!-- Snippet output for promoting a request into a PROFILE_FIELDS entry -->
+        <div id="admin-snippet" class="admin-snippet hidden">
+          <div class="panel-header-row">
+            <h3>Add to <code>src/shared/profile-schema.js</code></h3>
+            <button type="button" id="btn-copy-snippet" class="btn btn-outline">Copy</button>
+          </div>
+          <pre id="admin-snippet-code"></pre>
+          <p class="setting-desc">Paste this object into <code>AAM.PROFILE_FIELDS</code>, adjust the type/keywords if needed, then ship an extension update. The request was marked <strong>planned</strong>.</p>
         </div>
       </div>
 
