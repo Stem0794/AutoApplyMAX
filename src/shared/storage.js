@@ -45,9 +45,6 @@ AAM.Storage = {
     return this._operation('saveMapping', { siteKey, selector, profileKey, signature });
   },
 
-  saveMappingExplicit(siteKey, selector, profileKey, signature = '') {
-    return this._operation('saveMapping', { siteKey, selector, profileKey, signature, explicitShare: true });
-  },
 
   getSiteMappings(siteKey) {
     return this._operation('getSiteMappings', { siteKey });

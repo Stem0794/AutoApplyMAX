@@ -178,8 +178,7 @@ async function handleStorageOperation(message, sender) {
           message.selector,
           message.profileKey,
           message.signature,
-          sender,
-          message.explicitShare === true
+          sender
         )
       );
       return mappingWriteQueue;
@@ -266,7 +265,6 @@ async function getSettings() {
     highlightFilled: settings.highlightFilled !== false,
     showOverlay: settings.showOverlay !== false,
     showProactiveTrigger: settings.showProactiveTrigger !== false,
-    shareMappings: settings.shareMappings === true,
   };
 }
 
@@ -275,7 +273,6 @@ async function saveSettings(input) {
     highlightFilled: input?.highlightFilled !== false,
     showOverlay: input?.showOverlay !== false,
     showProactiveTrigger: input?.showProactiveTrigger !== false,
-    shareMappings: input?.shareMappings === true,
   };
   await chrome.storage.local.set({ [AAM.CONSTANTS.STORAGE_SETTINGS]: settings });
   return settings;
@@ -295,7 +292,7 @@ async function getSiteMappings(siteKey, senderUrl) {
   };
 }
 
-async function saveMapping(siteKey, selector, profileKey, signature, sender, explicitShare = false) {
+async function saveMapping(siteKey, selector, profileKey, signature, sender) {
   validateSiteKey(siteKey, sender.url);
   validateSelector(selector);
   if (!AAM.isProfileKey(profileKey) || !AAM.PROFILE_MAP[profileKey].autofillable) {
@@ -308,9 +305,7 @@ async function saveMapping(siteKey, selector, profileKey, signature, sender, exp
   all[siteKey] = site;
   await chrome.storage.local.set({ [AAM.CONSTANTS.STORAGE_MAPPINGS]: all });
 
-  const settings = await getSettings();
   if (
-    (explicitShare || settings.shareMappings) &&
     AAM.isCloudMappableProfileKey(profileKey) &&
     typeof signature === 'string' &&
     signature.length <= 500

@@ -193,7 +193,6 @@ async function loadSettings() {
     document.getElementById('setting-highlight').checked = settings.highlightFilled !== false;
     document.getElementById('setting-overlay').checked = settings.showOverlay !== false;
     document.getElementById('setting-proactive').checked = settings.showProactiveTrigger !== false;
-    document.getElementById('setting-share-mappings').checked = settings.shareMappings === true;
   } catch (err) {
     console.warn('Failed to load settings:', err);
   }
@@ -204,7 +203,6 @@ async function saveSettings() {
     highlightFilled: document.getElementById('setting-highlight').checked,
     showOverlay: document.getElementById('setting-overlay').checked,
     showProactiveTrigger: document.getElementById('setting-proactive').checked,
-    shareMappings: document.getElementById('setting-share-mappings').checked,
   };
 
   try {
@@ -504,7 +502,6 @@ function initEventListeners() {
   document.getElementById('setting-highlight').addEventListener('change', saveSettings);
   document.getElementById('setting-overlay').addEventListener('change', saveSettings);
   document.getElementById('setting-proactive').addEventListener('change', saveSettings);
-  document.getElementById('setting-share-mappings').addEventListener('change', saveSettings);
 
   // History: search filter
   document.getElementById('history-search').addEventListener('input', e => {

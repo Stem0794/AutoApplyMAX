@@ -301,11 +301,9 @@ AAM.SENSITIVE_PROFILE_KEYS = new Set([
   'veteranStatus',
   'disabilityStatus',
 ]);
-AAM.NON_CLOUD_PROFILE_KEYS = new Set([
-  ...AAM.SENSITIVE_PROFILE_KEYS,
-  'resumeFile',
-  'coverLetter',
-]);
+// Only the file-upload field is excluded from community mapping — the selector
+// for a salary/gender/etc. field is useful structural data, not a value.
+AAM.NON_CLOUD_PROFILE_KEYS = new Set(['resumeFile']);
 AAM.PROFILE_FIELDS.forEach(f => {
   f.sensitivity = f.key === 'resumeFile'
     ? 'document'

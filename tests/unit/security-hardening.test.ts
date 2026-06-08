@@ -36,11 +36,13 @@ describe('public-release security boundaries', () => {
     expect(aam().getSupportedATS('http://jobs.lever.co/acme/job')).toBeNull();
   });
 
-  it('keeps internal and sensitive fields out of community mappings', () => {
+  it('excludes only the file-upload field from community mappings', () => {
     expect(aam().PROFILE_MAP.resumeFileContent).toBeUndefined();
     expect(aam().PROFILE_MAP.resumeFileName).toBeUndefined();
     expect(aam().PROFILE_MAP.resumeFile.cloudMappable).toBe(false);
-    expect(aam().PROFILE_MAP.salaryExpectation.cloudMappable).toBe(false);
+    // Sensitive fields share selector structure (not values) — now cloud-mappable
+    expect(aam().PROFILE_MAP.salaryExpectation.cloudMappable).toBe(true);
+    expect(aam().PROFILE_MAP.gender.cloudMappable).toBe(true);
     expect(aam().PROFILE_MAP.ethnicity.requiresConfirmation).toBe(true);
     expect(aam().PROFILE_MAP.privacyPolicyConsent.autofillable).toBe(false);
   });
@@ -214,24 +216,47 @@ describe('public-release security boundaries', () => {
     expect((window as any).csvEscape('@SUM(1,2)')).toContain("'@SUM");
   });
 
-  it('accepts only normalized non-sensitive community mapping submissions', () => {
+  it('accepts community mapping submissions including sensitive fields, rejects only resume/CV and unknown keys', () => {
     const installationId = 'c8b22106-f267-4c74-b8b4-63131f91781f';
-    const validSignature = JSON.stringify({
-      v: 1,
-      tag: 'input',
-      type: 'email',
-      autocomplete: 'email',
-      name: 'email',
-      label: 'email address',
-    });
+    const sig = (overrides: object) =>
+      JSON.stringify({
+        v: 1,
+        tag: 'input',
+        type: 'text',
+        autocomplete: '',
+        name: '',
+        label: '',
+        ...overrides,
+      });
+
+    // Standard field — always valid
     expect(
       validateSubmitBody({
         installationId,
         mappings: [
           {
             siteKey: 'greenhouse:boards.greenhouse.io:acme',
-            fieldSignature: validSignature,
+            fieldSignature: sig({
+              type: 'email',
+              autocomplete: 'email',
+              name: 'email',
+              label: 'email address',
+            }),
             profileKey: 'email',
+          },
+        ],
+      }).value
+    ).toBeDefined();
+
+    // Sensitive field — now accepted (selector structure, not value)
+    expect(
+      validateSubmitBody({
+        installationId,
+        mappings: [
+          {
+            siteKey: 'greenhouse:boards.greenhouse.io:acme',
+            fieldSignature: sig({ tag: 'select', name: 'gender', label: 'gender' }),
+            profileKey: 'gender',
           },
         ],
       }).value
@@ -242,20 +267,50 @@ describe('public-release security boundaries', () => {
         mappings: [
           {
             siteKey: 'greenhouse:boards.greenhouse.io:acme',
-            fieldSignature: '#email',
-            profileKey: 'email',
+            fieldSignature: sig({ name: 'salary', label: 'salary expectation' }),
+            profileKey: 'salaryExpectation',
           },
         ],
-      }).error
+      }).value
     ).toBeDefined();
+
+    // resumeFile is not in ALLOWED_PROFILE_KEYS — still rejected
     expect(
       validateSubmitBody({
         installationId,
         mappings: [
           {
             siteKey: 'greenhouse:boards.greenhouse.io:acme',
-            fieldSignature: validSignature.replace('email address', 'salary expectation'),
-            profileKey: 'salaryExpectation',
+            fieldSignature: sig({ type: 'file', label: 'upload resume' }),
+            profileKey: 'resumeFile',
+          },
+        ],
+      }).error
+    ).toBeDefined();
+
+    // Signature whose label/name explicitly mentions resume upload — rejected
+    expect(
+      validateSubmitBody({
+        installationId,
+        mappings: [
+          {
+            siteKey: 'greenhouse:boards.greenhouse.io:acme',
+            fieldSignature: sig({ type: 'file', name: 'resume_cv', label: 'cv upload' }),
+            profileKey: 'coverLetter',
+          },
+        ],
+      }).error
+    ).toBeDefined();
+
+    // Invalid selector format
+    expect(
+      validateSubmitBody({
+        installationId,
+        mappings: [
+          {
+            siteKey: 'greenhouse:boards.greenhouse.io:acme',
+            fieldSignature: '#email',
+            profileKey: 'email',
           },
         ],
       }).error

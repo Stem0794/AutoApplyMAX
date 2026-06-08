@@ -392,7 +392,7 @@ AAM.Overlay = {
         confirmBtn.textContent = 'Saving…';
 
         try {
-          await AAM.Storage.saveMappingExplicit(siteKey, selector, profileKey, signature);
+          await AAM.Storage.saveMapping(siteKey, selector, profileKey, signature);
 
           // Visual feedback on the actual form field
           const el = document.querySelector(selector);
