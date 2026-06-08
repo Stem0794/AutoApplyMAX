@@ -62,7 +62,7 @@ async function handleMessage(message, sender) {
 }
 
 function assertExtensionPageSender(sender) {
-  if (sender.tab || !sender.url || !sender.url.startsWith(chrome.runtime.getURL(''))) {
+  if (!sender.url || !sender.url.startsWith(chrome.runtime.getURL(''))) {
     throw new Error('Message must originate from an extension page');
   }
 }
@@ -131,7 +131,7 @@ async function injectContentScripts(tabId) {
 
 async function handleStorageOperation(message, sender) {
   const operation = message.operation;
-  const fromContent = Boolean(sender.tab);
+  const fromContent = Boolean(sender.tab) && !(sender.url?.startsWith(chrome.runtime.getURL('')));
   if (fromContent) assertSupportedContentSender(sender);
   else assertExtensionPageSender(sender);
 
