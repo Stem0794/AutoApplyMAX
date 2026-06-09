@@ -19,16 +19,15 @@ const WorkdayAdapter = Object.assign({}, AAM.AdapterBase, {
   },
 
   async prepare() {
-    // Workday forms are heavily JS-rendered. Wait for the main container.
-    await this.waitForElement(
+    const containerSelector =
       '[data-automation-id="jobApplicationContainer"], ' +
       '[data-automation-id="compositeContainer"], ' +
-      '.css-1dbjc4n',
-      5000
-    );
-
-    // Wait a bit extra for Workday's dynamic rendering
-    await new Promise(resolve => setTimeout(resolve, 1500));
+      '.css-1dbjc4n';
+    // Most runs start after document_idle, so avoid paying a fixed delay when
+    // the application form is already present.
+    if (!document.querySelector(containerSelector)) {
+      await this.waitForElement(containerSelector, 2500);
+    }
 
     // Try to expand any collapsed sections
     const expandButtons = document.querySelectorAll(
@@ -37,7 +36,11 @@ const WorkdayAdapter = Object.assign({}, AAM.AdapterBase, {
       'button[aria-expanded="false"]'
     );
     for (const btn of expandButtons) {
-      await this.clickAndWait(btn, 500);
+      btn.click();
+    }
+    if (expandButtons.length > 0) {
+      // Let synchronous framework updates settle without imposing a fixed delay.
+      await Promise.resolve();
     }
   },
 
@@ -61,17 +64,6 @@ const WorkdayAdapter = Object.assign({}, AAM.AdapterBase, {
     ];
   },
 
-  async afterFill(result) {
-    // Workday fields often need focus/blur cycles to validate
-    const filledFields = document.querySelectorAll('[data-aam-filled="true"]');
-    for (const field of filledFields) {
-      field.focus();
-      await new Promise(resolve => setTimeout(resolve, 100));
-      field.dispatchEvent(new Event('blur', { bubbles: true }));
-      field.dispatchEvent(new Event('change', { bubbles: true }));
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  },
 });
 
 AAM.registerAdapter(WorkdayAdapter);

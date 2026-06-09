@@ -242,12 +242,23 @@ async function loadMappings() {
 
       html += `<div class="mapping-site">`;
       html += `<div class="mapping-site-name">${escapeHtml(site)}</div>`;
-      html += `<table class="mapping-table"><thead><tr><th>Selector</th><th>Profile Field</th></tr></thead><tbody>`;
+      html += `<table class="mapping-table"><thead><tr><th>Selector</th><th>Profile Field</th><th>Community</th></tr></thead><tbody>`;
 
-      for (const [selector, profileKey] of entries) {
+      for (const [selector, rawMapping] of entries) {
+        const profileKey = typeof rawMapping === 'string' ? rawMapping : rawMapping?.profileKey;
         const fieldDef = AAM.PROFILE_MAP[profileKey];
         const label = fieldDef ? fieldDef.label : profileKey;
-        html += `<tr><td><code>${escapeHtml(selector)}</code></td><td>${escapeHtml(label)}</td></tr>`;
+        let communityLabel = 'Local only';
+        if (typeof rawMapping === 'string') {
+          communityLabel = 'Local only (remap to share)';
+        } else if (rawMapping?.communityStatus === 'submitted') {
+          communityLabel = 'Pending review';
+        } else if (rawMapping?.communityStatus === 'failed') {
+          communityLabel = 'Submission failed (remap to retry)';
+        } else if (rawMapping?.communityStatus === 'pending') {
+          communityLabel = 'Sending';
+        }
+        html += `<tr><td><code>${escapeHtml(selector)}</code></td><td>${escapeHtml(label)}</td><td>${escapeHtml(communityLabel)}</td></tr>`;
       }
 
       html += `</tbody></table></div>`;
@@ -950,7 +961,12 @@ function hostInPattern(host, pattern) {
   const m = /^[a-z]+:\/\/([^/]+)/.exec(pattern);
   if (!m) return false;
   const patternHost = m[1].replace(/^\*\./, '').replace(/^\*/, '');
-  return patternHost === host || patternHost.endsWith('.' + host) || host.endsWith('.' + patternHost) || host === patternHost;
+  return (
+    patternHost === host ||
+    patternHost.endsWith('.' + host) ||
+    host.endsWith('.' + patternHost) ||
+    host === patternHost
+  );
 }
 
 function renderPlatforms() {

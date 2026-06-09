@@ -48,15 +48,16 @@ AAM.Autofill = {
 
     console.log('[AutoApplyMAX] Checking if proactive trigger should show...');
     try {
-      // 1. Check if we have a profile
-      const profile = await AAM.Storage.getProfile();
+      // Load local prerequisites together to keep page startup lightweight.
+      const [profile, settings] = await Promise.all([
+        AAM.Storage.getProfile(),
+        AAM.Storage.getSettings(),
+      ]);
       if (!profile || Object.keys(profile).length === 0) {
         console.log('[AutoApplyMAX] Trigger hidden: No profile saved.');
         return;
       }
 
-      // 2. Get the settings
-      const settings = await AAM.Storage.getSettings();
       if (settings.showProactiveTrigger === false) {
         console.log('[AutoApplyMAX] Trigger hidden: Disabled in settings.');
         return;
@@ -178,8 +179,16 @@ AAM.Autofill = {
     this._running = true;
 
     try {
-      // 1. Get the profile
-      const profile = await AAM.Storage.getProfile();
+      // Load independent resources while the adapter prepares the page.
+      const adapter = AAM.getAdapter();
+      const siteKey = adapter.getSiteKey();
+      const [context] = await Promise.all([
+        AAM.Storage.getAutofillContext(siteKey),
+        adapter.prepare(),
+      ]);
+      const { profile, siteMappings, settings } = context;
+
+      // 1. Validate the profile
       if (!profile || Object.keys(profile).length === 0) {
         AAM.Overlay.showMessage(
           'No profile found. Please fill your profile in the extension options first.',
@@ -188,28 +197,17 @@ AAM.Autofill = {
         return { error: 'No profile', filled: 0, skipped: 0, unmatched: 0 };
       }
 
-      // 2. Get the adapter for this ATS
-      const adapter = AAM.getAdapter();
+      // 2. Adapter and page are ready.
       console.log(`[AutoApplyMAX] Using adapter: ${adapter.name}`);
 
-      // 3. Adapter preparation (expand sections, wait for elements, etc.)
-      await adapter.prepare();
-
-      // 4. Get learned mappings for this site
-      const siteKey = adapter.getSiteKey();
-      const siteMappings = await AAM.Storage.getSiteMappings(siteKey);
-
-      // 5. Adapter mappings are matched against elements, not selector strings.
+      // 3. Adapter mappings are matched against elements, not selector strings.
       const knownMappings = adapter.getKnownMappings();
 
-      // 6. Get settings
-      const settings = await AAM.Storage.getSettings();
-
-      // 7. Detect form fields using heuristics + learned mappings
+      // 4. Detect form fields using heuristics + learned mappings
       const detectedFields = AAM.FieldDetector.detectFields(siteMappings, knownMappings);
       console.log(`[AutoApplyMAX] Detected ${detectedFields.length} form fields`);
 
-      // 7b. Detect adapter drift (known site whose selectors no longer match).
+      // 4b. Detect adapter drift (known site whose selectors no longer match).
       const drift = this.detectAdapterDrift(detectedFields, adapter, knownMappings);
       let driftNotice = '';
       if (drift) {
@@ -220,17 +218,17 @@ AAM.Autofill = {
           `Map any wrong fields below — your fixes are shared so everyone adapts.`;
       }
 
-      // 8. Fill the fields
+      // 5. Fill the fields
       const result = await AAM.FieldFiller.fillFields(detectedFields, profile, settings);
       console.log(
         `[AutoApplyMAX] Fill result: ${result.filled} filled, ` +
         `${result.skipped} skipped, ${result.unmatched} unmatched`
       );
 
-      // 9. Run adapter post-fill hook
+      // 6. Run adapter post-fill hook
       await adapter.afterFill(result);
 
-      // 10. Show the overlay
+      // 7. Show the overlay
       if (settings.showOverlay !== false) {
         AAM.Overlay.show({
           filled: result.filled,
@@ -239,7 +237,7 @@ AAM.Autofill = {
         }, detectedFields, siteKey, driftNotice);
       }
 
-      // 11. Notify the background/sidepanel that we're done
+      // 8. Notify the background/sidepanel that we're done
       chrome.runtime.sendMessage({
         type: AAM.CONSTANTS.MSG.AUTOFILL_COMPLETED,
         result: {

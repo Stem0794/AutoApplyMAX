@@ -38,12 +38,6 @@ const HireHiveAdapter = Object.assign({}, AAM.AdapterBase, {
     ];
   },
 
-  async afterFill(result) {
-    const filledFields = document.querySelectorAll('[data-aam-filled="true"]');
-    for (const field of filledFields) {
-      field.dispatchEvent(new Event('blur', { bubbles: true }));
-    }
-  },
 });
 
 AAM.registerAdapter(HireHiveAdapter);

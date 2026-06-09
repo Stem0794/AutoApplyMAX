@@ -1,9 +1,6 @@
 import { expect, test } from '../fixtures/extension';
 
-test('trusted prefill fills ordinary fields but leaves sensitive fields for confirmation', async ({
-  context,
-  serviceWorker,
-}) => {
+test('trusted prefill fills ordinary and sensitive fields', async ({ context, serviceWorker }) => {
   await context.route('https://boards.greenhouse.io/**', route => {
     return route.fulfill({
       contentType: 'text/html',
@@ -52,10 +49,8 @@ test('trusted prefill fills ordinary fields but leaves sensitive fields for conf
   await page.getByRole('button', { name: 'Prefill Form' }).click();
 
   await expect(page.locator('#first_name')).toHaveValue('Ada');
-  await expect(page.locator('#salary')).toHaveValue('');
+  await expect(page.locator('#salary')).toHaveValue('100000');
   await expect(page.locator('.aam-download-btn')).toBeVisible();
   await expect(page.locator('[data-filecontent]')).toHaveCount(0);
-  // The fields panel auto-expands when there are review fields; the sensitive
-  // salary field is held back behind an explicit confirmation button.
-  await expect(page.getByRole('button', { name: 'Fill this sensitive field' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fill this sensitive field' })).toHaveCount(0);
 });

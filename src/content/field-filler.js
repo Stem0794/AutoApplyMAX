@@ -72,8 +72,6 @@ AAM.FieldFiller = {
     // Dispatch events that frameworks listen for
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
-    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
-    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     el.dispatchEvent(new Event('blur', { bubbles: true }));
   },
 
@@ -264,13 +262,6 @@ AAM.FieldFiller = {
         skipped++;
         continue;
       }
-      if (fieldDefinition.requiresConfirmation) {
-        detection.status = 'requires_confirmation';
-        detection.pendingValue = value;
-        skipped++;
-        continue;
-      }
-
       // Fill the field (check for adapter-specific override first)
       let fieldFilled = false;
       if (adapter && typeof adapter.fillField === 'function') {
@@ -305,24 +296,24 @@ AAM.FieldFiller = {
     return { filled, skipped, unmatched, filledFields };
   },
 
-  async fillConfirmedField(detection) {
-    if (!detection?.element || typeof detection.pendingValue !== 'string') return false;
-    const definition = AAM.PROFILE_MAP[detection.profileKey];
-    if (!definition?.requiresConfirmation) return false;
+  async fillMappedField(detection, profileKey, value) {
+    if (!detection?.element || typeof value !== 'string' || !value) return false;
+    const definition = AAM.PROFILE_MAP[profileKey];
+    if (!definition?.autofillable || definition.type === 'file') return false;
+
     const adapter = AAM.getAdapter();
     detection.element.dataset.aamFilled = 'true';
-    detection.element.dataset.aamProfileKey = detection.profileKey;
+    detection.element.dataset.aamProfileKey = profileKey;
     let filled = false;
     if (adapter && typeof adapter.fillField === 'function') {
-      filled = await adapter.fillField(
-        detection.element,
-        detection.profileKey,
-        detection.pendingValue
-      );
+      filled = await adapter.fillField(detection.element, profileKey, value);
     }
-    if (!filled) this.setNativeValue(detection.element, detection.pendingValue);
-    detection.status = 'filled_confirmed';
-    delete detection.pendingValue;
+    if (!filled) this.setNativeValue(detection.element, value);
+
+    detection.profileKey = profileKey;
+    detection.confidence = 1;
+    detection.source = 'learned';
+    detection.status = 'filled';
     return true;
   },
 };

@@ -37,6 +37,7 @@ AAM.FieldDetector = {
     traverse(document);
 
     return allFields.filter(el => {
+      if (el.dataset?.aamIgnore === 'true') return false;
       if (el.disabled || el.readOnly) return false;
       if (el.type === 'hidden') return false;
       if (el.tagName === 'INPUT' && el.type === 'file') return true;
@@ -360,7 +361,7 @@ AAM.FieldDetector = {
     return path.join(' > ');
   },
 
-  buildSignature(field) {
+  buildSignature(field, displayLabel = this.getDisplayLabel(field)) {
     const normalize = value => String(value || '')
       .toLowerCase()
       .replace(/\s+/g, ' ')
@@ -373,7 +374,7 @@ AAM.FieldDetector = {
       type: normalize(field.getAttribute('type')),
       autocomplete: normalize(field.getAttribute('autocomplete')),
       name: normalize(field.getAttribute('name')),
-      label: normalize(this.getDisplayLabel(field)),
+      label: normalize(displayLabel),
     });
   },
 
@@ -396,9 +397,14 @@ AAM.FieldDetector = {
       // Deduplicate: the same element might appear via both document and Shadow DOM traversal
       if (seenSelectors.has(selector)) continue;
       seenSelectors.add(selector);
-      const signature = this.buildSignature(field);
-      const context = this.getFieldContext(field);
       const displayLabel = this.getDisplayLabel(field);
+      if (
+        /(?:do not|don't|dont)\s+open\s+(?:the\s+)?sidebar/i.test(displayLabel) ||
+        field.closest('#aam-overlay')
+      ) {
+        continue;
+      }
+      const signature = this.buildSignature(field, displayLabel);
 
       const localMapping = localMappings[selector];
       if (localMapping && AAM.isProfileKey(localMapping.profileKey)) {
@@ -408,7 +414,7 @@ AAM.FieldDetector = {
           signature,
           profileKey: localMapping.profileKey,
           confidence: 1.0,
-          context,
+          context: displayLabel.toLowerCase(),
           displayLabel,
           source: 'learned',
         });
@@ -429,7 +435,7 @@ AAM.FieldDetector = {
           signature,
           profileKey: knownMapping.profileKey,
           confidence: 0.95,
-          context,
+          context: displayLabel.toLowerCase(),
           displayLabel,
           source: 'adapter',
         });
@@ -438,6 +444,7 @@ AAM.FieldDetector = {
 
       let bestKey = null;
       let bestScore = 0;
+      const context = this.getFieldContext(field);
 
       for (const fieldDef of AAM.PROFILE_FIELDS) {
         const score = this.scoreMatch(context, fieldDef, field);
@@ -455,11 +462,6 @@ AAM.FieldDetector = {
           bestKey = communityMapping.profileKey;
           bestScore = Math.max(semanticScore, 0.75);
         }
-      }
-
-      if (bestScore >= AAM.CONSTANTS.CONFIDENCE_LOW) {
-        console.log(`[AutoApplyMAX] Match: ${bestKey} (${Math.round(bestScore * 100)}%) for selector: ${selector}`);
-        console.debug(`  Context: "${context}"`);
       }
 
       results.push({

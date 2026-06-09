@@ -187,6 +187,42 @@ const PLATFORMS: Platform[] = [
       <input name="x_decoy_field" data-expected="DECOY">
     `,
   },
+  {
+    file: 'jobfluent.js',
+    adapter: 'JobFluent',
+    fixture: `
+      <input autocomplete="name" data-expected="fullName">
+      <input autocomplete="given-name" data-expected="firstName">
+      <input autocomplete="family-name" data-expected="lastName">
+      <input autocomplete="email" data-expected="email">
+      <input autocomplete="tel" data-expected="phone">
+      <input name="linkedin_url" data-expected="linkedinUrl">
+      <textarea name="cover_letter" data-expected="coverLetter"></textarea>
+      <input type="file" name="resume" data-expected="resumeFile">
+      <input type="checkbox" name="privacy_policy_consent" data-expected="DECOY">
+    `,
+  },
+  {
+    file: 'bizneo.js',
+    adapter: 'Bizneo HR',
+    fixture: `
+      <input type="email" name="inscription_form[user_form][email]" data-expected="email">
+      <input name="inscription_form[user_form][first_name]" data-expected="firstName">
+      <input name="inscription_form[user_form][last_name]" data-expected="lastName">
+      <input name="inscription_form[user_form][phone]" data-expected="phone">
+      <select name="inscription_form[user_form][country_code]" data-expected="country"></select>
+      <select name="inscription_form[user_form][region_id]" data-expected="city"></select>
+      <input type="file"
+             name="inscription_form[user_form][assets_attributes][0][file]"
+             data-expected="resumeFile">
+      <input type="text" data-aam-bizneo="salary" data-expected="salaryExpectation">
+      <input type="text" data-aam-bizneo="education" data-expected="education">
+      <input type="text" data-aam-bizneo="motivation" data-expected="coverLetter">
+      <input type="checkbox"
+             name="inscription_form[terms_and_conditions]"
+             data-expected="DECOY">
+    `,
+  },
 ];
 
 /** Returns a human-readable failure per broken/over-broad known mapping. */

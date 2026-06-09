@@ -15,6 +15,9 @@ let mappingWriteQueue = Promise.resolve();
 const reportedDriftHosts = new Set();
 /** host|label pairs we've already submitted as field requests this lifetime. */
 const requestedFieldKeys = new Set();
+const approvedMappingsCache = new Map();
+const APPROVED_MAPPINGS_CACHE_MS = 5 * 60 * 1000;
+let communitySessionPromise = null;
 
 let initializationPromise = initialize();
 
@@ -150,6 +153,8 @@ async function injectContentScripts(tabId) {
     'src/content/adapters/revolut.js',
     'src/content/adapters/hirehive.js',
     'src/content/adapters/zoho.js',
+    'src/content/adapters/jobfluent.js',
+    'src/content/adapters/bizneo.js',
     'src/content/field-detector.js',
     'src/content/field-filler.js',
     'src/content/learning-engine.js',
@@ -170,6 +175,19 @@ async function handleStorageOperation(message, sender) {
     case 'getProfile': {
       const profile = fromContent ? await getProfile() : await getProfileMergedWithCloud();
       return fromContent ? sanitizeAutofillProfile(profile) : sanitizeStoredProfile(profile);
+    }
+    case 'getAutofillContext': {
+      if (!fromContent) throw new Error('Autofill context is only available to supported pages');
+      const [profile, settings, mappings] = await Promise.all([
+        getProfile(),
+        getSettings(),
+        getSiteMappings(message.siteKey, sender.url),
+      ]);
+      return {
+        profile: sanitizeAutofillProfile(profile),
+        settings,
+        siteMappings: mappings,
+      };
     }
     case 'saveProfile':
       if (fromContent) throw new Error('Content scripts cannot save profiles');
@@ -297,16 +315,35 @@ async function saveSettings(input) {
 
 async function getSiteMappings(siteKey, senderUrl) {
   validateSiteKey(siteKey, senderUrl);
-  const all = await getStorageValue(AAM.CONSTANTS.STORAGE_MAPPINGS, {});
-  const local = all[siteKey] || {};
-  const community = await getApprovedMappings(siteKey).catch(error => {
+  const communityPromise = getApprovedMappings(siteKey).catch(error => {
     console.warn('[AutoApplyMAX] Community mappings unavailable:', error);
     return {};
   });
+  const [all, community] = await Promise.all([
+    getStorageValue(AAM.CONSTANTS.STORAGE_MAPPINGS, {}),
+    promiseWithTimeout(communityPromise, 250, {}),
+  ]);
+  const local = all[siteKey] || {};
   return {
     localMappings: sanitizeMappingObject(local, false),
     communityMappings: sanitizeMappingObject(community, true),
   };
+}
+
+function promiseWithTimeout(promise, timeoutMs, fallback) {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(fallback), timeoutMs);
+    promise.then(
+      value => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    );
+  });
 }
 
 async function saveMapping(siteKey, selector, profileKey, signature, sender) {
@@ -318,20 +355,35 @@ async function saveMapping(siteKey, selector, profileKey, signature, sender) {
 
   const all = await getStorageValue(AAM.CONSTANTS.STORAGE_MAPPINGS, {});
   const site = all[siteKey] && typeof all[siteKey] === 'object' ? all[siteKey] : {};
-  site[selector] = profileKey;
+  const communityEligible =
+    AAM.isCloudMappableProfileKey(profileKey) &&
+    typeof signature === 'string' &&
+    signature.length > 0 &&
+    signature.length <= 500;
+  site[selector] = {
+    profileKey,
+    signature: communityEligible ? signature : '',
+    communityStatus: communityEligible ? 'pending' : 'local_only',
+  };
   all[siteKey] = site;
   await chrome.storage.local.set({ [AAM.CONSTANTS.STORAGE_MAPPINGS]: all });
 
-  if (
-    AAM.isCloudMappableProfileKey(profileKey) &&
-    typeof signature === 'string' &&
-    signature.length <= 500
-  ) {
-    submitMappings([{ siteKey, signature, profileKey }]).catch(error => {
-      console.warn('[AutoApplyMAX] Community submission failed:', error);
-    });
+  if (!communityEligible) {
+    return { saved: true, communityEligible: false, communitySubmitted: false };
   }
-  return true;
+
+  try {
+    await submitMappings([{ siteKey, signature, profileKey }]);
+    site[selector].communityStatus = 'submitted';
+    site[selector].communitySubmittedAt = new Date().toISOString();
+    await chrome.storage.local.set({ [AAM.CONSTANTS.STORAGE_MAPPINGS]: all });
+    return { saved: true, communityEligible: true, communitySubmitted: true };
+  } catch (error) {
+    site[selector].communityStatus = 'failed';
+    await chrome.storage.local.set({ [AAM.CONSTANTS.STORAGE_MAPPINGS]: all });
+    console.warn('[AutoApplyMAX] Community submission failed:', error);
+    return { saved: true, communityEligible: true, communitySubmitted: false };
+  }
 }
 
 function sanitizeMappingObject(input, cloudOnly) {
@@ -579,24 +631,55 @@ async function migrateStorage() {
 
 async function getApprovedMappings(siteKey) {
   if (!AAM.CONSTANTS.COMMUNITY_API_URL || !AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY) return {};
-  const session = await getCommunitySession();
-  const url = new URL('/functions/v1/read-mappings', AAM.CONSTANTS.COMMUNITY_API_URL);
-  url.searchParams.set('siteKey', siteKey);
-  const response = await fetch(url, {
-    headers: {
-      apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
-      Authorization: `Bearer ${session.accessToken}`,
-    },
+  const cached = approvedMappingsCache.get(siteKey);
+  if (cached?.value && cached.expiresAt > Date.now()) return cached.value;
+  if (cached?.promise) return cached.promise;
+
+  const promise = (async () => {
+    const session = await getCommunitySession();
+    const url = new URL('/functions/v1/read-mappings', AAM.CONSTANTS.COMMUNITY_API_URL);
+    url.searchParams.set('siteKey', siteKey);
+    const response = await fetch(url, {
+      headers: {
+        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+    });
+    if (!response.ok) return cached?.value || {};
+    const data = await response.json();
+    const output = {};
+    for (const row of data.mappings || []) {
+      if (typeof row.fieldSignature === 'string' && AAM.isCloudMappableProfileKey(row.profileKey)) {
+        output[row.fieldSignature] = row.profileKey;
+      }
+    }
+    approvedMappingsCache.set(siteKey, {
+      value: output,
+      expiresAt: Date.now() + APPROVED_MAPPINGS_CACHE_MS,
+    });
+    return output;
+  })();
+
+  approvedMappingsCache.set(siteKey, {
+    value: cached?.value,
+    expiresAt: cached?.expiresAt || 0,
+    promise,
   });
-  if (!response.ok) return {};
-  const data = await response.json();
-  const output = {};
-  for (const row of data.mappings || []) {
-    if (typeof row.fieldSignature === 'string' && AAM.isCloudMappableProfileKey(row.profileKey)) {
-      output[row.fieldSignature] = row.profileKey;
+  try {
+    return await promise;
+  } finally {
+    const current = approvedMappingsCache.get(siteKey);
+    if (current?.promise === promise) {
+      if (current.value) {
+        approvedMappingsCache.set(siteKey, {
+          value: current.value,
+          expiresAt: current.expiresAt,
+        });
+      } else {
+        approvedMappingsCache.delete(siteKey);
+      }
     }
   }
-  return output;
 }
 
 async function submitMappings(mappings) {
@@ -776,18 +859,28 @@ async function getCommunitySession() {
   const stored = await getStorageValue(AAM.CONSTANTS.STORAGE_COMMUNITY_SESSION, null);
   if (stored?.accessToken && Number(stored.expiresAt) > Date.now() + 60000) return stored;
 
-  if (stored?.refreshToken) {
-    const refreshed = await requestCommunityAuth(`/auth/v1/token?grant_type=refresh_token`, {
-      refresh_token: stored.refreshToken,
-    });
-    if (refreshed) return persistCommunitySession(refreshed);
-  }
+  if (!communitySessionPromise) {
+    communitySessionPromise = (async () => {
+      if (stored?.refreshToken) {
+        const refreshed = await requestCommunityAuth(`/auth/v1/token?grant_type=refresh_token`, {
+          refresh_token: stored.refreshToken,
+        });
+        if (refreshed) return persistCommunitySession(refreshed);
+      }
 
-  const created = await requestCommunityAuth('/auth/v1/signup', {});
-  if (!created?.access_token) {
-    throw new Error('Community authentication is unavailable');
+      const created = await requestCommunityAuth('/auth/v1/signup', {});
+      if (!created?.access_token) {
+        throw new Error('Community authentication is unavailable');
+      }
+      return persistCommunitySession(created);
+    })();
   }
-  return persistCommunitySession(created);
+  const pendingSession = communitySessionPromise;
+  try {
+    return await pendingSession;
+  } finally {
+    if (communitySessionPromise === pendingSession) communitySessionPromise = null;
+  }
 }
 
 async function requestCommunityAuth(path, body) {

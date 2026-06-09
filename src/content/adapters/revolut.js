@@ -72,8 +72,8 @@
             try {
                 // 1. Click to open the dropdown
                 element.click();
-                // Wait for the menu to appear in the DOM
-                await new Promise(r => setTimeout(r, 600));
+                // Continue as soon as React mounts the options.
+                await this.waitForElement('button[role="option"]', 800);
 
                 // 2. Revolut dropdown options are buttons with role="option"
                 const options = Array.from(document.querySelectorAll('button[role="option"]'));
@@ -92,8 +92,6 @@
                     if (match) {
                         match.click();
                         foundMatch = true;
-                        // For multi-select, wait a bit between clicks
-                        if (targets.length > 1) await new Promise(r => setTimeout(r, 200));
                     }
                 }
 

@@ -33,7 +33,9 @@
     "https://*.applytojob.com/*",
     "https://*.breezy.hr/*",
     "https://*.jobvite.com/*",
-    "https://*.bamboohr.com/*"
+    "https://*.bamboohr.com/*",
+    "https://www.jobfluent.com/jobs/*",
+    "https://*.careers.ats.bizneo.cloud/jobs/*"
   ],
   "background": {
     "service_worker": "src/background/service-worker.js"
@@ -62,7 +64,9 @@
         "https://*.zohorecruit.com/*",
         "https://www.revolut.com/*",
         "https://apply.workable.com/*",
-        "https://*.mainder.ai/*"
+        "https://*.mainder.ai/*",
+        "https://www.jobfluent.com/jobs/*",
+        "https://*.careers.ats.bizneo.cloud/jobs/*"
       ],
       "js": [
         "src/shared/constants.js",
@@ -89,6 +93,8 @@
         "src/content/adapters/breezy.js",
         "src/content/adapters/jobvite.js",
         "src/content/adapters/bamboohr.js",
+        "src/content/adapters/jobfluent.js",
+        "src/content/adapters/bizneo.js",
         "src/content/field-detector.js",
         "src/content/field-filler.js",
         "src/content/learning-engine.js",

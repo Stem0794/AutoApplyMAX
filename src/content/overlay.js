@@ -15,6 +15,8 @@ function aamEscapeHtml(value) {
 AAM.Overlay = {
   /** @type {HTMLElement|null} */
   _container: null,
+  /** @type {{stats: object, detectedFields: Array, siteKey: string, notice: string}|null} */
+  _lastResult: null,
 
   /**
    * Show the autofill result overlay.
@@ -26,49 +28,55 @@ AAM.Overlay = {
   show(stats, detectedFields = [], siteKey = '', notice = '') {
     const allFields = detectedFields || [];
     const reviewFields = allFields.filter(
-      f => f.source === 'unmatched' ||
+      f =>
+        f.source === 'unmatched' ||
         f.confidence < AAM.CONSTANTS.CONFIDENCE_LOW ||
-        ['missing_value', 'requires_confirmation', 'not_autofillable'].includes(f.status)
+        ['missing_value', 'not_autofillable'].includes(f.status)
     );
 
     // Review fields first, then the rest
-    const sortedFields = [
-      ...reviewFields,
-      ...allFields.filter(f => !reviewFields.includes(f)),
-    ];
+    const sortedFields = [...reviewFields, ...allFields.filter(f => !reviewFields.includes(f))];
+    this._lastResult = { stats, detectedFields, siteKey, notice };
 
     // Build grouped profile options for the zap picker
     const groupOrder = ['personal', 'professional', 'additional'];
-    const groupLabels = { personal: 'Personal', professional: 'Professional', additional: 'Application' };
+    const groupLabels = {
+      personal: 'Personal',
+      professional: 'Professional',
+      additional: 'Application',
+    };
     const profileGroups = {};
     for (const f of AAM.PROFILE_FIELDS) {
       if (!f.autofillable) continue;
       if (!profileGroups[f.group]) profileGroups[f.group] = [];
       profileGroups[f.group].push(f);
     }
-    const buildOptions = selectedKey => [
-      '<option value="">-- Map this field --</option>',
-      ...groupOrder.filter(g => profileGroups[g]).map(g =>
-        `<optgroup label="${groupLabels[g]}">${
-          profileGroups[g].map(f =>
-            `<option value="${f.key}"${f.key === selectedKey ? ' selected' : ''}>${aamEscapeHtml(f.label)}</option>`
-          ).join('')
-        }</optgroup>`
-      ),
-      '<optgroup label="Missing a field?"><option value="__request__">&#10133; Request a new field…</option></optgroup>',
-    ].join('');
+    const buildOptions = selectedKey =>
+      [
+        '<option value="">-- Map this field --</option>',
+        ...groupOrder
+          .filter(g => profileGroups[g])
+          .map(
+            g =>
+              `<optgroup label="${groupLabels[g]}">${profileGroups[g]
+                .map(
+                  f =>
+                    `<option value="${f.key}"${f.key === selectedKey ? ' selected' : ''}>${aamEscapeHtml(f.label)}</option>`
+                )
+                .join('')}</optgroup>`
+          ),
+        '<optgroup label="Missing a field?"><option value="__request__">&#10133; Request a new field…</option></optgroup>',
+      ].join('');
 
     const makeFieldItem = (field, idx) => {
       const isReview = reviewFields.includes(field);
       const badgeClass = field.profileKey
         ? `aam-badge-${field.source || 'heuristic'}`
         : 'aam-badge-unmatched';
-      const badgeText = field.profileKey
-        ? aamEscapeHtml(field.profileKey)
-        : 'Unmatched';
+      const badgeText = field.profileKey ? aamEscapeHtml(field.profileKey) : 'Unmatched';
       const labelText = field.displayLabel || 'Field ' + (idx + 1);
       return `
-        <div class="aam-field-item${isReview ? ' aam-field-review' : ''}"
+        <div class="aam-field-item${isReview ? ' aam-field-review' : ' aam-field-secondary'}"
              data-field-index="${idx}"
              data-label="${encodeURIComponent(labelText)}"
              data-selector="${encodeURIComponent(field.selector || '')}"
@@ -80,6 +88,7 @@ AAM.Overlay = {
             <span class="aam-field-src-badge ${badgeClass}">${badgeText}</span>
             <button class="aam-zap-btn" title="Map this field to a profile field">&#9889;</button>
           </div>
+          <p class="aam-community-status" aria-live="polite"></p>
           <div class="aam-zap-picker" hidden>
             <select class="aam-zap-select">${buildOptions(field.profileKey || '')}</select>
             <div class="aam-zap-request" hidden>
@@ -94,9 +103,6 @@ AAM.Overlay = {
             </div>
             <p class="aam-zap-hint"></p>
           </div>
-          ${field.status === 'requires_confirmation'
-            ? `<button type="button" class="aam-confirm-sensitive" data-field-index="${idx}">Fill this sensitive field</button>`
-            : ''}
         </div>
       `;
     };
@@ -105,9 +111,10 @@ AAM.Overlay = {
     container.setAttribute('role', 'alert');
     container.setAttribute('aria-live', 'polite');
 
-    const fieldsToggleLabel = reviewFields.length > 0
-      ? `&#9889; Fix ${reviewFields.length} unmatched &amp; map fields &#8595;`
-      : `&#9889; Map fields &#8595;`;
+    const fieldsToggleLabel =
+      reviewFields.length > 0
+        ? `&#9889; Fix ${reviewFields.length} unmatched &amp; map fields &#8595;`
+        : `&#9889; Map fields &#8595;`;
 
     container.innerHTML = `
       <style>
@@ -119,6 +126,7 @@ AAM.Overlay = {
           pointer-events: auto;
           animation: aamSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
+        #aam-overlay, #aam-overlay * { box-sizing: border-box; }
         @keyframes aamSlideIn {
           from { transform: translateY(20px) scale(0.95); opacity: 0; }
           to   { transform: translateY(0) scale(1); opacity: 1; }
@@ -136,7 +144,10 @@ AAM.Overlay = {
         #aam-overlay-card {
           background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
           box-shadow: 0 10px 40px rgba(0,0,0,0.12), 0 2px 10px rgba(0,0,0,0.05);
-          padding: 20px; max-width: 380px; min-width: 300px;
+          padding: 20px; width: min(520px, calc(100vw - 32px));
+          max-width: 520px; min-width: min(340px, calc(100vw - 32px));
+          max-height: calc(100vh - 48px); overflow: hidden;
+          display: flex; flex-direction: column;
         }
         #aam-overlay-header {
           display: flex; align-items: center; justify-content: space-between;
@@ -198,8 +209,11 @@ AAM.Overlay = {
         #aam-fields-toggle:hover { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; }
         #aam-fields-toggle.has-review { border-color: #fde68a; background: #fffbeb; color: #92400e; }
         #aam-fields-panel {
-          margin-top: 8px; max-height: 280px; overflow-y: auto;
+          margin-top: 8px; flex: 1 1 auto; max-height: 360px;
+          min-height: 80px; overflow-y: auto; overscroll-behavior: contain;
+          scrollbar-gutter: stable;
           display: flex; flex-direction: column; gap: 5px;
+          padding-right: 2px;
         }
         .aam-field-item {
           border: 1px solid #f1f5f9; border-radius: 10px;
@@ -208,15 +222,18 @@ AAM.Overlay = {
         .aam-field-item.aam-field-review { border-color: #fde68a; background: #fffbeb; }
         .aam-field-item.aam-field-done { border-color: #bbf7d0 !important; background: #f0fdf4 !important; }
         .aam-field-row {
-          display: flex; align-items: center; gap: 6px; padding: 7px 10px;
+          display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+          min-height: 42px;
         }
         .aam-field-label {
-          flex: 1; font-weight: 600; font-size: 12px; color: #1e293b;
+          flex: 1; min-width: 0; font-weight: 600; font-size: 13px; color: #1e293b;
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .aam-field-src-badge {
           font-size: 9px; padding: 2px 5px; border-radius: 4px;
           font-weight: 700; text-transform: uppercase; flex-shrink: 0;
+          max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+          white-space: nowrap;
         }
         .aam-badge-adapter   { background: #dbeafe; color: #1d4ed8; }
         .aam-badge-learned   { background: #d1fae5; color: #065f46; }
@@ -225,7 +242,7 @@ AAM.Overlay = {
         .aam-badge-unmatched { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
         .aam-zap-btn {
           background: none; border: none; cursor: pointer;
-          font-size: 14px; padding: 2px 5px; border-radius: 6px;
+          font-size: 17px; width: 30px; height: 30px; padding: 0; border-radius: 8px;
           color: #94a3b8; transition: all 0.2s; flex-shrink: 0; line-height: 1;
         }
         .aam-zap-btn:hover { color: #f59e0b; background: #fffbeb; }
@@ -240,6 +257,7 @@ AAM.Overlay = {
           width: 100%; padding: 6px 8px; font-size: 12px;
           border-radius: 8px; border: 1px solid #e2e8f0;
           color: #1e293b; background: #fff; outline: none;
+          min-height: 32px; line-height: normal;
         }
         .aam-zap-select:focus { border-color: #3b82f6; }
         .aam-zap-request { display: flex; flex-direction: column; gap: 6px; }
@@ -268,13 +286,45 @@ AAM.Overlay = {
         }
         .aam-zap-cancel:hover { background: #f1f5f9; }
         .aam-zap-hint { font-size: 11px; color: #64748b; margin: 0; min-height: 14px; }
-        .aam-confirm-sensitive {
-          display: block; width: calc(100% - 20px); margin: 0 10px 8px;
-          padding: 6px; font-size: 12px; font-weight: 600;
-          background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px;
-          color: #92400e; cursor: pointer; text-align: center; transition: background 0.2s;
+        .aam-community-status {
+          display: none; margin: -2px 12px 8px; font-size: 11px;
+          line-height: 1.35; color: #64748b;
         }
-        .aam-confirm-sensitive:hover { background: #fde68a; }
+        .aam-community-status.is-success { display: block; color: #047857; }
+        .aam-community-status.is-warning { display: block; color: #b45309; }
+        .aam-fill-mapped {
+          display: block; width: calc(100% - 20px); margin: 0 10px 8px;
+          padding: 7px; font-size: 12px; font-weight: 700;
+          background: #2563eb; border: 0; border-radius: 8px;
+          color: #fff; cursor: pointer; text-align: center;
+        }
+        .aam-fill-mapped:hover { background: #1d4ed8; }
+        .aam-fill-mapped:disabled { opacity: 0.55; cursor: default; }
+        #aam-fields-show-all {
+          width: 100%; padding: 8px 10px; margin-top: 3px;
+          border: 1px dashed #cbd5e1; border-radius: 9px;
+          background: #f8fafc; color: #475569; cursor: pointer;
+          font-size: 12px; font-weight: 700;
+          position: sticky; bottom: 0; z-index: 2;
+          box-shadow: 0 -8px 14px rgba(248,250,252,0.95);
+        }
+        #aam-fields-show-all:hover { background: #f1f5f9; color: #1e293b; }
+        #aam-overlay #aam-fields-panel[hidden],
+        #aam-overlay .aam-zap-picker[hidden],
+        #aam-overlay .aam-zap-request[hidden],
+        #aam-overlay .aam-field-secondary[hidden] {
+          display: none !important;
+        }
+        @media (max-width: 480px), (max-height: 600px) {
+          #aam-overlay { right: 12px; bottom: 12px; }
+          #aam-overlay-card {
+            width: calc(100vw - 24px); min-width: 0;
+            max-height: calc(100vh - 24px); padding: 14px;
+          }
+          #aam-overlay-header, #aam-overlay-stats { margin-bottom: 10px; }
+          #aam-overlay-message { margin-bottom: 10px; }
+          #aam-fields-panel { max-height: none; }
+        }
       </style>
       <div id="aam-overlay-card">
         <div id="aam-overlay-header">
@@ -302,30 +352,69 @@ AAM.Overlay = {
         <div id="aam-overlay-message">
           <strong>Please review your info</strong> before manually submitting.
         </div>
-        ${sortedFields.length > 0 ? `
+        ${
+          sortedFields.length > 0
+            ? `
           <button id="aam-fields-toggle" class="${reviewFields.length > 0 ? 'has-review' : ''}">
             ${fieldsToggleLabel}
           </button>
           <div id="aam-fields-panel" ${reviewFields.length === 0 ? 'hidden' : ''}>
             ${sortedFields.map((field, idx) => makeFieldItem(field, idx)).join('')}
+            ${
+              reviewFields.length > 0 && sortedFields.length > reviewFields.length
+                ? `<button type="button" id="aam-fields-show-all">Show all ${sortedFields.length} detected fields</button>`
+                : ''
+            }
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     `;
+
+    if (reviewFields.length > 0) {
+      container.querySelectorAll('.aam-field-secondary').forEach(item => {
+        item.hidden = true;
+      });
+    }
 
     // Toggle fields panel
     const fieldsToggle = container.querySelector('#aam-fields-toggle');
     if (fieldsToggle) {
       fieldsToggle.addEventListener('click', event => {
         if (!event.isTrusted) return;
-        if (this._dismissTimer) { clearTimeout(this._dismissTimer); this._dismissTimer = null; }
+        if (this._dismissTimer) {
+          clearTimeout(this._dismissTimer);
+          this._dismissTimer = null;
+        }
         const panel = container.querySelector('#aam-fields-panel');
         const hidden = panel.hidden;
         panel.hidden = !hidden;
+        if (hidden) panel.scrollTop = 0;
         const hasReview = reviewFields.length > 0;
         fieldsToggle.innerHTML = !hidden
-          ? (hasReview ? `&#9889; Fix ${reviewFields.length} unmatched &amp; map fields &#8595;` : '&#9889; Map fields &#8595;')
-          : (hasReview ? `&#9889; Fix ${reviewFields.length} unmatched &amp; map fields &#8593;` : '&#9889; Map fields &#8593;');
+          ? hasReview
+            ? `&#9889; Fix ${reviewFields.length} unmatched &amp; map fields &#8595;`
+            : '&#9889; Map fields &#8595;'
+          : hasReview
+            ? `&#9889; Fix ${reviewFields.length} unmatched &amp; map fields &#8593;`
+            : '&#9889; Map fields &#8593;';
+      });
+    }
+
+    const showAllButton = container.querySelector('#aam-fields-show-all');
+    if (showAllButton) {
+      showAllButton.addEventListener('click', event => {
+        if (!event.isTrusted) return;
+        const secondaryFields = [...container.querySelectorAll('.aam-field-secondary')];
+        const shouldShow = secondaryFields.some(item => item.hidden);
+        secondaryFields.forEach(item => {
+          item.hidden = !shouldShow;
+        });
+        container.querySelector('#aam-fields-panel').scrollTop = 0;
+        showAllButton.textContent = shouldShow
+          ? 'Show only fields that need review'
+          : `Show all ${sortedFields.length} detected fields`;
       });
     }
 
@@ -354,12 +443,17 @@ AAM.Overlay = {
     container.querySelectorAll('.aam-zap-btn').forEach(btn => {
       btn.addEventListener('click', event => {
         if (!event.isTrusted) return;
-        if (this._dismissTimer) { clearTimeout(this._dismissTimer); this._dismissTimer = null; }
+        if (this._dismissTimer) {
+          clearTimeout(this._dismissTimer);
+          this._dismissTimer = null;
+        }
         const item = btn.closest('.aam-field-item');
         const picker = item.querySelector('.aam-zap-picker');
         const isOpen = !picker.hidden;
         // Close all other pickers first
-        container.querySelectorAll('.aam-zap-picker').forEach(p => { p.hidden = true; });
+        container.querySelectorAll('.aam-zap-picker').forEach(p => {
+          p.hidden = true;
+        });
         picker.hidden = isOpen;
         if (!isOpen) item.querySelector('.aam-zap-select').focus();
       });
@@ -385,7 +479,8 @@ AAM.Overlay = {
           confirmBtn.textContent = '📨 Send request';
           confirmBtn.className = 'aam-zap-confirm request';
           confirmBtn.disabled = !labelInput.value.trim();
-          hint.textContent = 'Suggest a new profile field — sent to the maintainers, no values included.';
+          hint.textContent =
+            'Suggest a new profile field — sent to the maintainers, no values included.';
           return;
         }
 
@@ -461,7 +556,10 @@ AAM.Overlay = {
             const zapBtn = item.querySelector('.aam-zap-btn');
             zapBtn.textContent = '✓';
             zapBtn.style.color = '#8b5cf6';
-            setTimeout(() => { zapBtn.textContent = '⚡'; zapBtn.style.color = ''; }, 2000);
+            setTimeout(() => {
+              zapBtn.textContent = '⚡';
+              zapBtn.style.color = '';
+            }, 2000);
           } catch (err) {
             console.error('[AutoApplyMAX] Field request failed:', err);
             confirmBtn.disabled = false;
@@ -475,7 +573,12 @@ AAM.Overlay = {
         confirmBtn.textContent = 'Saving…';
 
         try {
-          await AAM.Storage.saveMapping(siteKey, selector, profileKey, signature);
+          const saveResult = await AAM.Storage.saveMapping(
+            siteKey,
+            selector,
+            profileKey,
+            signature
+          );
 
           // Visual feedback on the actual form field
           const el = document.querySelector(selector);
@@ -492,6 +595,56 @@ AAM.Overlay = {
           badge.className = 'aam-field-src-badge aam-badge-learned';
           badge.textContent = profileKey;
           item.querySelector('.aam-zap-picker').hidden = true;
+          const communityStatus = item.querySelector('.aam-community-status');
+          if (saveResult?.communitySubmitted) {
+            communityStatus.className = 'aam-community-status is-success';
+            communityStatus.textContent = 'Sent for community review.';
+          } else if (saveResult?.communityEligible) {
+            communityStatus.className = 'aam-community-status is-warning';
+            communityStatus.textContent =
+              'Saved locally. Community submission failed; map it again to retry.';
+          } else {
+            communityStatus.className = 'aam-community-status is-warning';
+            communityStatus.textContent = 'Saved locally only; this field is not shareable.';
+          }
+
+          const profile = await AAM.Storage.getProfile().catch(() => ({}));
+          const mappedValue = profile?.[profileKey];
+          const definition = AAM.PROFILE_MAP[profileKey];
+          if (
+            typeof mappedValue === 'string' &&
+            mappedValue &&
+            definition?.autofillable &&
+            definition.type !== 'file'
+          ) {
+            let fillButton = item.querySelector('.aam-fill-mapped');
+            if (!fillButton) {
+              fillButton = document.createElement('button');
+              fillButton.type = 'button';
+              fillButton.className = 'aam-fill-mapped';
+              item.appendChild(fillButton);
+            }
+            fillButton.textContent = 'Fill now';
+            fillButton.addEventListener('click', async fillEvent => {
+              if (!fillEvent.isTrusted) return;
+              fillButton.disabled = true;
+              fillButton.textContent = 'Filling...';
+              const fieldIndex = Number(item.dataset.fieldIndex);
+              const field = sortedFields[fieldIndex];
+              if (await AAM.FieldFiller.fillMappedField(field, profileKey, mappedValue)) {
+                fillButton.textContent = 'Filled ✓';
+                item.classList.add('aam-field-done');
+                const target = document.querySelector(selector);
+                if (target) {
+                  target.style.outline = '3px solid #10b981';
+                  target.style.outlineOffset = '2px';
+                }
+              } else {
+                fillButton.disabled = false;
+                fillButton.textContent = 'Fill now';
+              }
+            });
+          }
 
           // Brief "Saved ✓" feedback on the ⚡ button
           const zapBtn = item.querySelector('.aam-zap-btn');
@@ -510,27 +663,93 @@ AAM.Overlay = {
       });
     });
 
-    // Sensitive field fill button
-    container.querySelectorAll('.aam-confirm-sensitive').forEach(button => {
-      button.addEventListener('click', async event => {
-        if (!event.isTrusted) return;
-        const item = event.currentTarget.closest('.aam-field-item');
-        const fieldIndex = Number(item.dataset.fieldIndex);
-        const field = sortedFields[fieldIndex];
-        if (field && await AAM.FieldFiller.fillConfirmedField(field)) {
-          event.currentTarget.textContent = '✓ Filled';
-          event.currentTarget.disabled = true;
-        }
-      });
-    });
-
     // Close button
-    container.querySelector('#aam-overlay-close').addEventListener('click', () => {
-      this.remove();
+    container.querySelector('#aam-overlay-close').addEventListener('click', event => {
+      if (!event.isTrusted) return;
+      this.minimizeResult();
     });
 
-    // Auto-dismiss after 15 seconds if not interacting
-    this._dismissTimer = setTimeout(() => this.remove(), 15000);
+    // Keep a small launcher available after the full review card collapses.
+    this._dismissTimer = setTimeout(() => this.minimizeResult(), 30000);
+  },
+
+  /**
+   * Collapse the latest autofill result into a persistent launcher.
+   */
+  minimizeResult() {
+    if (!this._lastResult) {
+      this.remove();
+      return;
+    }
+    if (this._dismissTimer) {
+      clearTimeout(this._dismissTimer);
+      this._dismissTimer = null;
+    }
+
+    const reviewCount = this._lastResult.detectedFields.filter(
+      field =>
+        field.source === 'unmatched' ||
+        field.confidence < AAM.CONSTANTS.CONFIDENCE_LOW ||
+        ['missing_value', 'not_autofillable'].includes(field.status)
+    ).length;
+    const container = this._getOrCreateContainer();
+    container.innerHTML = `
+      <style>
+        #aam-overlay {
+          position: fixed; right: 20px; bottom: 20px;
+          z-index: ${AAM.CONSTANTS.OVERLAY_Z};
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #aam-result-launcher {
+          display: flex; align-items: center; gap: 9px;
+          padding: 9px 10px 9px 14px; border: 1px solid #dbeafe;
+          border-radius: 999px; background: #fff; color: #1e293b;
+          box-shadow: 0 8px 30px rgba(15,23,42,0.16);
+          font-size: 13px; font-weight: 700; cursor: pointer;
+        }
+        #aam-result-launcher:hover { border-color: #93c5fd; background: #eff6ff; }
+        #aam-result-launcher-count {
+          min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;
+          display: inline-flex; align-items: center; justify-content: center;
+          background: ${reviewCount ? '#f59e0b' : '#10b981'}; color: #fff;
+          font-size: 11px;
+        }
+        #aam-result-launcher-dismiss {
+          width: 24px; height: 24px; border: 0; border-radius: 50%;
+          background: transparent; color: #94a3b8; cursor: pointer;
+          font-size: 16px; line-height: 1;
+        }
+        #aam-result-launcher-dismiss:hover { background: #e2e8f0; color: #475569; }
+      </style>
+      <div id="aam-result-launcher" role="button" tabindex="0" aria-label="Reopen autofill review">
+        <span id="aam-result-launcher-count">${reviewCount}</span>
+        <span>Review autofill</span>
+        <button id="aam-result-launcher-dismiss" title="Dismiss permanently">&times;</button>
+      </div>
+    `;
+
+    const reopen = event => {
+      if (!event.isTrusted) return;
+      if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
+      const lastResult = this._lastResult;
+      if (lastResult) {
+        this.show(
+          lastResult.stats,
+          lastResult.detectedFields,
+          lastResult.siteKey,
+          lastResult.notice
+        );
+      }
+    };
+    const launcher = container.querySelector('#aam-result-launcher');
+    launcher.addEventListener('click', reopen);
+    launcher.addEventListener('keydown', reopen);
+    container.querySelector('#aam-result-launcher-dismiss').addEventListener('click', event => {
+      if (!event.isTrusted) return;
+      event.stopPropagation();
+      this._lastResult = null;
+      this.remove(true);
+    });
   },
 
   /**
@@ -760,7 +979,7 @@ AAM.Overlay = {
       </div>
     `;
 
-    const handleClick = (e) => {
+    const handleClick = e => {
       if (!e.isTrusted) return;
       e.stopPropagation();
       this.showLoading('Prefilling with Max...');
@@ -769,7 +988,7 @@ AAM.Overlay = {
 
     container.querySelector('#aam-trigger-btn').addEventListener('click', handleClick);
     container.querySelector('#aam-trigger-card').addEventListener('click', handleClick);
-    container.querySelector('#aam-trigger-close').addEventListener('click', (e) => {
+    container.querySelector('#aam-trigger-close').addEventListener('click', e => {
       e.stopPropagation();
       this.remove();
     });

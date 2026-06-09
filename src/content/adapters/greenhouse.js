@@ -39,13 +39,6 @@ const GreenhouseAdapter = Object.assign({}, AAM.AdapterBase, {
     ];
   },
 
-  async afterFill(result) {
-    // Greenhouse may have custom question fields that need blur events
-    const filledFields = document.querySelectorAll('[data-aam-filled="true"]');
-    for (const field of filledFields) {
-      field.dispatchEvent(new Event('blur', { bubbles: true }));
-    }
-  },
 });
 
 AAM.registerAdapter(GreenhouseAdapter);

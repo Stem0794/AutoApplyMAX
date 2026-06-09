@@ -56,6 +56,8 @@ AAM.CONSTANTS = {
     BREEZY: ['breezy.hr'],
     JOBVITE: ['jobvite.com'],
     BAMBOOHR: ['bamboohr.com'],
+    JOBFLUENT: ['www.jobfluent.com'],
+    BIZNEO: ['careers.ats.bizneo.cloud'],
   },
 
   COMMUNITY_API_URL:
@@ -138,6 +140,15 @@ AAM.getSupportedATS = function (urlValue) {
   for (const [name, hosts] of checks) {
     if (hosts.some(allowed => AAM.isExactOrSubdomain(host, allowed))) return name;
   }
+  if (host === 'www.jobfluent.com' && url.pathname.startsWith('/jobs/')) {
+    return 'JOBFLUENT';
+  }
+  if (
+    AAM.isExactOrSubdomain(host, 'careers.ats.bizneo.cloud') &&
+    url.pathname.startsWith('/jobs/')
+  ) {
+    return 'BIZNEO';
+  }
   if (host === 'www.revolut.com' && url.pathname.startsWith('/careers/apply/')) {
     return 'REVOLUT';
   }
@@ -172,6 +183,8 @@ AAM.SUPPORTED_PLATFORMS = [
   { key: 'BREEZY', name: 'Breezy HR', hosts: ['breezy.hr'] },
   { key: 'JOBVITE', name: 'Jobvite', hosts: ['jobvite.com'] },
   { key: 'BAMBOOHR', name: 'BambooHR', hosts: ['bamboohr.com'] },
+  { key: 'JOBFLUENT', name: 'JobFluent', hosts: ['jobfluent.com/jobs'] },
+  { key: 'BIZNEO', name: 'Bizneo HR', hosts: ['careers.ats.bizneo.cloud/jobs'] },
 ];
 
 globalThis.AAM = AAM;

@@ -26,7 +26,8 @@ const LeverAdapter = Object.assign({}, AAM.AdapterBase, {
     // Click the "Apply" button if the form isn't visible yet
     const applyBtn = document.querySelector('.postings-btn-wrapper a, [data-qa="btn-apply"]');
     if (applyBtn && !document.querySelector('.application-form')) {
-      await this.clickAndWait(applyBtn, 1000);
+      applyBtn.click();
+      await this.waitForElement('.application-form, [data-qa="application-form"]', 1200);
     }
   },
 
@@ -45,12 +46,6 @@ const LeverAdapter = Object.assign({}, AAM.AdapterBase, {
     ];
   },
 
-  async afterFill(result) {
-    const filledFields = document.querySelectorAll('[data-aam-filled="true"]');
-    for (const field of filledFields) {
-      field.dispatchEvent(new Event('blur', { bubbles: true }));
-    }
-  },
 });
 
 AAM.registerAdapter(LeverAdapter);

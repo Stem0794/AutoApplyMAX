@@ -33,6 +33,10 @@ AAM.Storage = {
     return this._operation('getProfile');
   },
 
+  getAutofillContext(siteKey) {
+    return this._operation('getAutofillContext', { siteKey });
+  },
+
   saveProfile(profile) {
     return this._operation('saveProfile', { profile });
   },

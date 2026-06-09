@@ -23,7 +23,10 @@
             const showMore = document.querySelector('.showMoreFields, [id*="showMore"]');
             if (showMore) {
                 showMore.click();
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await this.waitForElement(
+                    '[id^="rec-form_First_Name"], [id^="rec-form_Email"], [id^="rec-form_Mobile"]',
+                    700
+                );
             }
         },
 

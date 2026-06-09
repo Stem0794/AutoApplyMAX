@@ -32,7 +32,7 @@ const LinkedInAdapter = Object.assign({}, AAM.AdapterBase, {
     );
     for (const btn of expandButtons) {
       if (btn.getAttribute('aria-expanded') === 'false') {
-        await this.clickAndWait(btn, 300);
+        btn.click();
       }
     }
   },
@@ -51,16 +51,6 @@ const LinkedInAdapter = Object.assign({}, AAM.AdapterBase, {
     ];
   },
 
-  async afterFill(result) {
-    // LinkedIn forms sometimes need a slight delay for validation to kick in
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    // Trigger validation on all filled fields
-    const filledFields = document.querySelectorAll('[data-aam-filled="true"]');
-    for (const field of filledFields) {
-      field.dispatchEvent(new Event('blur', { bubbles: true }));
-    }
-  },
 });
 
 AAM.registerAdapter(LinkedInAdapter);

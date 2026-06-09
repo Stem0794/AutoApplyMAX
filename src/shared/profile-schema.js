@@ -172,8 +172,30 @@ AAM.PROFILE_FIELDS = [
     label: 'Highest Education',
     type: 'text',
     group: 'professional',
-    keywords: ['education', 'degree', 'highest education', 'qualification', 'school', 'university'],
-    aliases: [/education/i, /degree/i, /qualification/i, /school/i, /university/i],
+    keywords: [
+      'education',
+      'degree',
+      'highest education',
+      'qualification',
+      'school',
+      'university',
+      'formación académica',
+      'formacion academica',
+      'nivel de estudios',
+      'estudios',
+      'titulación',
+      'titulacion',
+    ],
+    aliases: [
+      /education/i,
+      /degree/i,
+      /qualification/i,
+      /school/i,
+      /university/i,
+      /formaci[oó]n[\s_-]?acad[eé]mica/i,
+      /nivel[\s_-]?de[\s_-]?estudios/i,
+      /titulaci[oó]n/i,
+    ],
   },
   {
     key: 'preferredLocations',
@@ -310,7 +332,9 @@ AAM.PROFILE_FIELDS.forEach(f => {
     : (AAM.SENSITIVE_PROFILE_KEYS.has(f.key) ? 'sensitive' : 'standard');
   f.autofillable = f.key !== 'privacyPolicyConsent';
   f.cloudMappable = !AAM.NON_CLOUD_PROFILE_KEYS.has(f.key);
-  f.requiresConfirmation = f.sensitivity !== 'standard';
+  // Profile values are user-authored and may be autofilled consistently.
+  // Legal/privacy consent remains non-autofillable regardless of sensitivity.
+  f.requiresConfirmation = false;
   f.maxLength = f.type === 'textarea' ? 10000 : 500;
   AAM.PROFILE_MAP[f.key] = f;
 });

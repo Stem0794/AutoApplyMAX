@@ -65,34 +65,25 @@ AAM.AdapterBase = {
       const el = document.querySelector(selector);
       if (el) return resolve(el);
 
+      let timer = null;
       const observer = new MutationObserver(() => {
         const el = document.querySelector(selector);
         if (el) {
           observer.disconnect();
+          if (timer) clearTimeout(timer);
           resolve(el);
         }
       });
 
       observer.observe(document.body, { childList: true, subtree: true });
 
-      setTimeout(() => {
+      timer = setTimeout(() => {
         observer.disconnect();
         resolve(null);
       }, timeout);
     });
   },
 
-  /**
-   * Utility: click an element and wait.
-   * @param {HTMLElement} el
-   * @param {number} delay - ms to wait after click
-   * @returns {Promise<void>}
-   */
-  async clickAndWait(el, delay = 500) {
-    if (!el) return;
-    el.click();
-    return new Promise(resolve => setTimeout(resolve, delay));
-  },
 };
 
 /** Registry of all adapters */
