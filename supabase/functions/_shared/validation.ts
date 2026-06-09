@@ -33,6 +33,8 @@ export const ALLOWED_PROFILE_KEYS = new Set([
   'veteranStatus',
   'disabilityStatus',
   'privacyPolicyConsent',
+  'futureOffersConsent',
+  'dataProcessingConsent',
 ]);
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -46,6 +48,7 @@ export interface MappingInput {
   siteKey: string;
   fieldSignature: string;
   profileKey: string;
+  sourceUrl: string | null;
 }
 
 export interface SubmitMappingsBody {
@@ -93,26 +96,32 @@ export function validateSubmitBody(body: unknown): ValidationResult {
   const mappings: MappingInput[] = [];
 
   for (const rawMapping of candidate.mappings) {
-    if (
-      !rawMapping ||
-      typeof rawMapping !== 'object' ||
-      Array.isArray(rawMapping) ||
-      !hasOnlyKeys(rawMapping as Record<string, unknown>, [
-        'profileKey',
-        'fieldSignature',
-        'siteKey',
-      ])
-    ) {
+    if (!rawMapping || typeof rawMapping !== 'object' || Array.isArray(rawMapping)) {
       return {
-        error: 'Each mapping must contain only siteKey, fieldSignature, and profileKey',
+        error: 'Each mapping must contain only siteKey, fieldSignature, profileKey, and sourceUrl',
       };
     }
 
     const mapping = rawMapping as Record<string, unknown>;
+    const hasLegacyKeys = hasOnlyKeys(mapping, ['profileKey', 'fieldSignature', 'siteKey']);
+    const hasSourceUrlKeys = hasOnlyKeys(mapping, [
+      'profileKey',
+      'fieldSignature',
+      'siteKey',
+      'sourceUrl',
+    ]);
+    if (!hasLegacyKeys && !hasSourceUrlKeys) {
+      return {
+        error: 'Each mapping must contain only siteKey, fieldSignature, profileKey, and sourceUrl',
+      };
+    }
     if (
       typeof mapping.siteKey !== 'string' ||
       typeof mapping.fieldSignature !== 'string' ||
-      typeof mapping.profileKey !== 'string'
+      typeof mapping.profileKey !== 'string' ||
+      (mapping.sourceUrl !== undefined &&
+        mapping.sourceUrl !== null &&
+        typeof mapping.sourceUrl !== 'string')
     ) {
       return { error: 'Mapping fields must be strings' };
     }
@@ -120,6 +129,7 @@ export function validateSubmitBody(body: unknown): ValidationResult {
     const siteKey = mapping.siteKey.trim().toLowerCase();
     const fieldSignature = mapping.fieldSignature.trim();
     const profileKey = mapping.profileKey.trim();
+    let sourceUrl: string | null = null;
 
     if (
       siteKey.length < 1 ||
@@ -140,6 +150,24 @@ export function validateSubmitBody(body: unknown): ValidationResult {
 
     if (!ALLOWED_PROFILE_KEYS.has(profileKey)) {
       return { error: `profileKey is not allowed: ${profileKey}` };
+    }
+
+    if (typeof mapping.sourceUrl === 'string' && mapping.sourceUrl) {
+      try {
+        const parsedSourceUrl = new URL(mapping.sourceUrl);
+        if (
+          parsedSourceUrl.protocol !== 'https:' ||
+          parsedSourceUrl.username ||
+          parsedSourceUrl.password ||
+          parsedSourceUrl.href.length > 2048
+        ) {
+          return { error: 'sourceUrl must be a safe HTTPS URL' };
+        }
+        parsedSourceUrl.hash = '';
+        sourceUrl = parsedSourceUrl.href;
+      } catch {
+        return { error: 'sourceUrl must be a safe HTTPS URL' };
+      }
     }
 
     try {
@@ -170,6 +198,7 @@ export function validateSubmitBody(body: unknown): ValidationResult {
         siteKey,
         fieldSignature: normalizedSignature,
         profileKey,
+        sourceUrl,
       });
     } catch {
       return { error: 'fieldSignature must be normalized JSON' };

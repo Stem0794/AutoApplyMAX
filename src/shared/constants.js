@@ -72,6 +72,7 @@ AAM.CONSTANTS = {
   // Message types for background ↔ content communication
   MSG: {
     TRIGGER_AUTOFILL: 'aam:trigger_autofill',
+    TRIGGER_ACTIVE_PAGE: 'aam:trigger_active_page',
     AUTOFILL_RESULT: 'aam:autofill_result',
     GET_PROFILE: 'aam:get_profile',
     SAVE_MAPPING: 'aam:save_mapping',
@@ -80,6 +81,9 @@ AAM.CONSTANTS = {
     LOG_APPLICATION: 'aam:log_application',
     GET_APPLIED_JOBS: 'aam:get_applied_jobs',
     AUTOFILL_COMPLETED: 'aam:autofill_completed',
+    OPEN_SIDE_PANEL: 'aam:open_side_panel',
+    REVIEW_FIELD_ACTION: 'aam:review_field_action',
+    GET_REVIEW_STATE: 'aam:get_review_state',
     PAGE_INFO: 'aam:page_info',
     STORAGE_OPERATION: 'aam:storage_operation',
     DOWNLOAD_RESUME: 'aam:download_resume',
@@ -115,6 +119,13 @@ AAM.getSupportedATS = function (urlValue) {
   if (url.protocol !== 'https:') return null;
 
   const host = url.hostname.toLowerCase();
+  if (
+    host === 'www.gelato.com' &&
+    url.pathname === '/careers/jobs' &&
+    /^[0-9a-f-]{36}$/i.test(url.searchParams.get('ashby_jid') || '')
+  ) {
+    return 'ASHBY';
+  }
   const checks = [
     ['LINKEDIN', ['linkedin.com']],
     ['GREENHOUSE', ['boards.greenhouse.io', 'jobs.greenhouse.io']],
@@ -130,7 +141,7 @@ AAM.getSupportedATS = function (urlValue) {
     ['SUCCESSFACTORS', ['successfactors.com', 'successfactors.eu']],
     ['TALEO', ['taleo.net']],
     ['RECRUITEE', ['recruitee.com']],
-    ['TEAMTAILOR', ['teamtailor.com']],
+    ['TEAMTAILOR', ['teamtailor.com', 'career.cafler.com']],
     ['JAZZHR', ['applytojob.com']],
     ['BREEZY', ['breezy.hr']],
     ['JOBVITE', ['jobvite.com']],
@@ -178,7 +189,11 @@ AAM.SUPPORTED_PLATFORMS = [
   { key: 'SUCCESSFACTORS', name: 'SAP SuccessFactors', hosts: ['successfactors.com', 'successfactors.eu'] },
   { key: 'TALEO', name: 'Oracle Taleo', hosts: ['taleo.net'] },
   { key: 'RECRUITEE', name: 'Recruitee', hosts: ['recruitee.com'] },
-  { key: 'TEAMTAILOR', name: 'Teamtailor', hosts: ['teamtailor.com'] },
+  {
+    key: 'TEAMTAILOR',
+    name: 'Teamtailor',
+    hosts: ['teamtailor.com', 'career.cafler.com'],
+  },
   { key: 'JAZZHR', name: 'JazzHR', hosts: ['applytojob.com'] },
   { key: 'BREEZY', name: 'Breezy HR', hosts: ['breezy.hr'] },
   { key: 'JOBVITE', name: 'Jobvite', hosts: ['jobvite.com'] },

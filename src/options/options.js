@@ -88,6 +88,10 @@ function buildFormFields() {
       if (field.type === 'textarea') {
         input = document.createElement('textarea');
         input.rows = 4;
+      } else if (field.type === 'checkbox') {
+        input = document.createElement('input');
+        input.type = 'checkbox';
+        div.classList.add('profile-consent');
       } else if (field.type === 'file') {
         input = document.createElement('input');
         input.type = 'file';
@@ -105,10 +109,11 @@ function buildFormFields() {
       } else {
         input = document.createElement('input');
         input.type = field.type || 'text';
-        input.id = 'field-' + field.key;
-        input.name = field.key;
         input.placeholder = field.label + '...';
       }
+
+      input.id = 'field-' + field.key;
+      input.name = field.key;
 
       // For 'file' type, input is already added. For others, add here.
       if (field.type !== 'file') {
@@ -128,8 +133,9 @@ async function loadProfile() {
     for (const [key, value] of Object.entries(profile)) {
       const input = document.querySelector(`[name="${key}"]`);
       if (input) {
-        // For regular inputs, or the file input itself
-        if (value) {
+        if (input.type === 'checkbox') {
+          input.checked = value === true;
+        } else if (value) {
           input.value = value;
         }
       }
@@ -162,6 +168,9 @@ async function saveProfile() {
       } else if (_currentProfile.resumeAsset) {
         profile.resumeAsset = _currentProfile.resumeAsset;
       }
+    } else if (fieldDef.type === 'checkbox') {
+      const input = form.querySelector(`[name="${fieldDef.key}"]`);
+      if (input?.checked) profile[fieldDef.key] = true;
     } else {
       const input = form.querySelector(`[name="${fieldDef.key}"]`);
       if (input) {
@@ -725,12 +734,26 @@ function renderAdminMappings(groups) {
         <div class="admin-row-meta">
           site <code>${escapeText(g.siteKey)}</code> · ${escapeText(sig.tag)}${sig.name ? ` <code>${escapeText(sig.name)}</code>` : ''}
         </div>
+        <div class="admin-row-meta">
+          <span class="admin-source-link"></span>
+        </div>
       </div>
       <div class="admin-row-actions">
         <button type="button" class="btn btn-approve">Approve</button>
         <button type="button" class="btn btn-danger">Reject</button>
       </div>
     `;
+    const sourceLinkContainer = row.querySelector('.admin-source-link');
+    if (g.sourceUrl) {
+      const sourceLink = document.createElement('a');
+      sourceLink.href = g.sourceUrl;
+      sourceLink.target = '_blank';
+      sourceLink.rel = 'noopener noreferrer';
+      sourceLink.textContent = 'Open source form ↗';
+      sourceLinkContainer.appendChild(sourceLink);
+    } else {
+      sourceLinkContainer.textContent = 'Source URL unavailable';
+    }
     row
       .querySelector('.btn-approve')
       .addEventListener('click', () =>
@@ -804,8 +827,8 @@ function renderAdminRequests(rows) {
         </div>
       </div>
       <div class="admin-row-actions">
-        <button type="button" class="btn btn-approve">Promote</button>
-        <button type="button" class="btn btn-outline">Done</button>
+        <button type="button" class="btn btn-approve">Approve for release</button>
+        <button type="button" class="btn btn-outline">Mark released</button>
         <button type="button" class="btn btn-danger">Decline</button>
       </div>
     `;
@@ -832,8 +855,9 @@ async function setRequestStatus(id, status, row) {
   }
 }
 
-/** Generate a ready-to-paste PROFILE_FIELDS entry from a request label. */
-function buildFieldSnippet(label) {
+/** Generate a ready-to-paste PROFILE_FIELDS entry from a request. */
+function buildFieldSnippet(request) {
+  const label = request.suggested_label;
   const clean = label.trim().replace(/\s+/g, ' ');
   const words = clean
     .toLowerCase()
@@ -846,10 +870,22 @@ function buildFieldSnippet(label) {
   const esc = s => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const keywords = [...new Set([clean.toLowerCase(), ...words])].map(k => `'${esc(k)}'`);
   const aliasSrc = words.length ? words.join('[\\\\s_-]?') : esc(key);
+  const signature =
+    request.field_signature && typeof request.field_signature === 'object'
+      ? request.field_signature
+      : {};
+  const type =
+    signature.type === 'checkbox' || /consent|accept|agree|permission/i.test(clean)
+      ? 'checkbox'
+      : signature.tag === 'textarea'
+        ? 'textarea'
+        : ['email', 'tel', 'url', 'date'].includes(signature.type)
+          ? signature.type
+          : 'text';
   return `  {
     key: '${esc(key)}',
     label: '${esc(clean)}',
-    type: 'text',
+    type: '${type}',
     group: 'additional',
     keywords: [${keywords.join(', ')}],
     aliases: [/${aliasSrc}/i],
@@ -916,13 +952,23 @@ async function exportFieldSchema() {
 }
 
 async function promoteRequest(request) {
-  const snippet = buildFieldSnippet(request.suggested_label);
+  const snippet = buildFieldSnippet(request);
   document.getElementById('admin-snippet-code').textContent = snippet;
   document.getElementById('admin-snippet').classList.remove('hidden');
-  document.getElementById('admin-snippet').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  // Mark the request as planned so it leaves the open queue.
-  await setRequestStatus(request.id, 'planned');
-  setTimeout(loadAdminRequests, 400);
+  try {
+    await navigator.clipboard.writeText(snippet);
+    await setRequestStatus(request.id, 'planned');
+    showStatus('Approved for release. Field definition copied to clipboard.', 'success');
+    document
+      .getElementById('admin-snippet')
+      .scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(loadAdminRequests, 400);
+  } catch (err) {
+    showStatus(
+      `Definition generated, but automatic copy or status update failed: ${err.message}`,
+      'error'
+    );
+  }
 }
 
 function escapeText(value) {

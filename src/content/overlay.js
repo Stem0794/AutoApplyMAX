@@ -18,6 +18,36 @@ AAM.Overlay = {
   /** @type {{stats: object, detectedFields: Array, siteKey: string, notice: string}|null} */
   _lastResult: null,
 
+  _viewportPosition(offset = 24) {
+    return window.top === window ? `bottom: ${offset}px;` : `top: ${offset}px;`;
+  },
+
+  _styleIsolation() {
+    return `
+      #aam-overlay, #aam-overlay * {
+        box-sizing: border-box !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        letter-spacing: normal !important;
+        text-indent: 0 !important;
+        text-shadow: none !important;
+      }
+      #aam-overlay span {
+        position: static !important;
+        inset: auto !important;
+        width: auto !important;
+        height: auto !important;
+        margin: 0 !important;
+        transform: none !important;
+        opacity: 1 !important;
+      }
+      #aam-overlay button, #aam-overlay input, #aam-overlay select {
+        float: none !important;
+        margin-block: 0 !important;
+        text-transform: none !important;
+      }
+    `;
+  },
+
   /**
    * Show the autofill result overlay.
    * @param {{filled: number, skipped: number}} stats
@@ -119,14 +149,14 @@ AAM.Overlay = {
     container.innerHTML = `
       <style>
         #aam-overlay {
-          position: fixed; bottom: 24px; right: 24px;
+          position: fixed; ${this._viewportPosition()} right: 24px;
           z-index: ${AAM.CONSTANTS.OVERLAY_Z};
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           font-size: 14px; line-height: 1.5; color: #1a1a1a;
           pointer-events: auto;
           animation: aamSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        #aam-overlay, #aam-overlay * { box-sizing: border-box; }
+        ${this._styleIsolation()}
         @keyframes aamSlideIn {
           from { transform: translateY(20px) scale(0.95); opacity: 0; }
           to   { transform: translateY(0) scale(1); opacity: 1; }
@@ -318,7 +348,7 @@ AAM.Overlay = {
           display: none !important;
         }
         @media (max-width: 480px), (max-height: 600px) {
-          #aam-overlay { right: 12px; bottom: 12px; }
+          #aam-overlay { right: 12px; ${this._viewportPosition(12)} }
           #aam-overlay-card {
             width: calc(100vw - 24px); min-width: 0;
             max-height: calc(100vh - 24px); padding: 14px;
@@ -463,7 +493,7 @@ AAM.Overlay = {
 
     // Zap picker — select change
     container.querySelectorAll('.aam-zap-select').forEach(select => {
-      select.addEventListener('change', () => {
+      const syncPickerState = () => {
         const item = select.closest('.aam-field-item');
         const confirmBtn = item.querySelector('.aam-zap-confirm');
         const hint = item.querySelector('.aam-zap-hint');
@@ -501,7 +531,9 @@ AAM.Overlay = {
           confirmBtn.className = 'aam-zap-confirm';
           hint.textContent = '';
         }
-      });
+      };
+      select.addEventListener('change', syncPickerState);
+      syncPickerState();
     });
 
     // Request form — enable the send button only when a name is entered
@@ -699,10 +731,11 @@ AAM.Overlay = {
     container.innerHTML = `
       <style>
         #aam-overlay {
-          position: fixed; right: 20px; bottom: 20px;
+          position: fixed; right: 20px; ${this._viewportPosition(20)}
           z-index: ${AAM.CONSTANTS.OVERLAY_Z};
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
+        ${this._styleIsolation()}
         #aam-result-launcher {
           display: flex; align-items: center; gap: 9px;
           padding: 9px 10px 9px 14px; border: 1px solid #dbeafe;
@@ -776,13 +809,14 @@ AAM.Overlay = {
       <style>
         #aam-overlay {
           position: fixed;
-          bottom: 24px;
+          ${this._viewportPosition()}
           right: 24px;
           z-index: ${AAM.CONSTANTS.OVERLAY_Z};
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           font-size: 14px;
           animation: aamSlideIn 0.3s ease-out;
         }
+        ${this._styleIsolation()}
         @keyframes aamSlideIn {
           from { transform: translateY(20px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
@@ -891,6 +925,13 @@ AAM.Overlay = {
 
     container.innerHTML = `
       <style>
+        #aam-overlay {
+          position: fixed;
+          ${this._viewportPosition()}
+          right: 24px;
+          z-index: ${AAM.CONSTANTS.OVERLAY_Z};
+        }
+        ${this._styleIsolation()}
         #aam-overlay-loading {
           background: #ffffff;
           border: 1px solid #e2e8f0;
@@ -933,12 +974,13 @@ AAM.Overlay = {
       <style>
         #aam-overlay {
           position: fixed;
-          bottom: 24px;
+          ${this._viewportPosition()}
           right: 24px;
           z-index: ${AAM.CONSTANTS.OVERLAY_Z};
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           animation: aamSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
+        ${this._styleIsolation()}
         #aam-trigger-card {
           background: rgba(255, 255, 255, 0.95);
           backdrop-filter: blur(8px);
@@ -986,7 +1028,10 @@ AAM.Overlay = {
       if (!e.isTrusted) return;
       e.stopPropagation();
       this.showLoading('Prefilling with Max...');
-      onTrigger();
+      chrome.runtime
+        .sendMessage({ type: AAM.CONSTANTS.MSG.OPEN_SIDE_PANEL })
+        .catch(() => {})
+        .finally(() => onTrigger());
     };
 
     container.querySelector('#aam-trigger-btn').addEventListener('click', handleClick);

@@ -23,6 +23,18 @@ AAM.FieldFiller = {
     }
 
     el.dataset.aamFilled = 'true';
+    if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')) {
+      if (value !== true) return;
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'checked'
+      )?.set;
+      if (setter) setter.call(el, true);
+      else el.checked = true;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
     const tagName = el.tagName.toUpperCase();
     const role = el.getAttribute('role');
     const isContentEditable = el.getAttribute('contenteditable') === 'true';
@@ -247,21 +259,30 @@ AAM.FieldFiller = {
         continue;
       }
 
-
-      // Skip if already filled with the same value
-      const currentValue = element.value || element.textContent || '';
-      if (currentValue.trim() === value.trim()) {
-        detection.status = 'skipped_already_filled';
-        skipped++;
-        continue;
-      }
-
+      const isChoiceInput =
+        element instanceof HTMLInputElement &&
+        (element.type === 'checkbox' || element.type === 'radio');
       const fieldDefinition = AAM.PROFILE_MAP[profileKey];
       if (!fieldDefinition?.autofillable) {
         detection.status = 'not_autofillable';
         skipped++;
         continue;
       }
+
+      if (isChoiceInput && value === true && element.checked) {
+        detection.status = 'skipped_already_filled';
+        skipped++;
+        continue;
+      }
+
+      // Skip if already filled with the same value
+      const currentValue = element.value || element.textContent || '';
+      if (!isChoiceInput && typeof value === 'string' && currentValue.trim() === value.trim()) {
+        detection.status = 'skipped_already_filled';
+        skipped++;
+        continue;
+      }
+
       // Fill the field (check for adapter-specific override first)
       let fieldFilled = false;
       if (adapter && typeof adapter.fillField === 'function') {
@@ -297,7 +318,10 @@ AAM.FieldFiller = {
   },
 
   async fillMappedField(detection, profileKey, value) {
-    if (!detection?.element || typeof value !== 'string' || !value) return false;
+    if (
+      !detection?.element ||
+      (!((typeof value === 'string' && value) || value === true))
+    ) return false;
     const definition = AAM.PROFILE_MAP[profileKey];
     if (!definition?.autofillable || definition.type === 'file') return false;
 

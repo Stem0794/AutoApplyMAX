@@ -59,6 +59,18 @@ describe('public-release security boundaries', () => {
       aam().getSupportedATS('https://careers.ats.bizneo.cloud.attacker.example/jobs/job')
     ).toBeNull();
     expect(aam().getSupportedATS('https://linkedin.com.attacker.example/jobs')).toBeNull();
+    expect(aam().getSupportedATS('https://career.cafler.com/jobs/7696508-ai-product-owner')).toBe(
+      'TEAMTAILOR'
+    );
+    expect(
+      aam().getSupportedATS('https://career.cafler.com.attacker.example/jobs/7696508')
+    ).toBeNull();
+    expect(
+      aam().getSupportedATS(
+        'https://www.gelato.com/careers/jobs?ashby_jid=33aa7515-d189-4004-a09d-0825dd72a1cb'
+      )
+    ).toBe('ASHBY');
+    expect(aam().getSupportedATS('https://www.gelato.com/careers/jobs')).toBeNull();
     expect(aam().getSupportedATS('http://jobs.lever.co/acme/job')).toBeNull();
   });
 
@@ -72,6 +84,103 @@ describe('public-release security boundaries', () => {
     expect(aam().PROFILE_MAP.salaryExpectation.requiresConfirmation).toBe(false);
     expect(aam().PROFILE_MAP.ethnicity.requiresConfirmation).toBe(false);
     expect(aam().PROFILE_MAP.privacyPolicyConsent.autofillable).toBe(false);
+    expect(aam().PROFILE_MAP.futureOffersConsent.autofillable).toBe(true);
+    expect(aam().PROFILE_MAP.futureOffersConsent.cloudMappable).toBe(true);
+    expect(aam().PROFILE_MAP.dataProcessingConsent.autofillable).toBe(true);
+    expect(aam().PROFILE_MAP.dataProcessingConsent.cloudMappable).toBe(true);
+  });
+
+  it('recognizes Cafler consent questions as local explicit preferences', () => {
+    load('src/content/adapters/adapter-base.js');
+    load('src/content/field-detector.js');
+    document.body.innerHTML = `
+      <label for="future">Accept contact for future offers</label>
+      <input id="future" type="checkbox">
+      <label for="processing">Accept process of data</label>
+      <input id="processing" type="checkbox">
+    `;
+    for (const input of document.querySelectorAll('input')) {
+      vi.spyOn(input, 'getBoundingClientRect').mockReturnValue({
+        width: 20,
+        height: 20,
+        top: 0,
+        left: 0,
+        right: 20,
+        bottom: 20,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      });
+    }
+
+    const results = aam().FieldDetector.detectFields();
+    expect(results.map((result: any) => result.profileKey)).toEqual([
+      'futureOffersConsent',
+      'dataProcessingConsent',
+    ]);
+    expect(results.every((result: any) => aam().PROFILE_MAP[result.profileKey].autofillable)).toBe(
+      true
+    );
+  });
+
+  it('checks a consent field only when its saved preference is true', async () => {
+    load('src/content/adapters/adapter-base.js');
+    load('src/content/field-filler.js');
+    document.body.innerHTML = '<input id="future" type="checkbox">';
+    const checkbox = document.getElementById('future') as HTMLInputElement;
+    const detection = {
+      element: checkbox,
+      selector: '#future',
+      profileKey: 'futureOffersConsent',
+      confidence: 1,
+      source: 'heuristic',
+      displayLabel: 'Accept contact for future offers',
+      status: '',
+    };
+
+    const withoutConsent = await aam().FieldFiller.fillFields([detection], {});
+    expect(checkbox.checked).toBe(false);
+    expect(withoutConsent.filled).toBe(0);
+
+    detection.status = '';
+    const inputEvent = vi.fn();
+    const changeEvent = vi.fn();
+    checkbox.addEventListener('input', inputEvent);
+    checkbox.addEventListener('change', changeEvent);
+    const withConsent = await aam().FieldFiller.fillFields([detection], {
+      futureOffersConsent: true,
+    });
+
+    expect(checkbox.checked).toBe(true);
+    expect(checkbox.dataset.aamFilled).toBe('true');
+    expect(inputEvent).toHaveBeenCalledOnce();
+    expect(changeEvent).toHaveBeenCalledOnce();
+    expect(withConsent.filled).toBe(1);
+  });
+
+  it('accepts explicit consent signatures for community review without a consent value', () => {
+    const installationId = '123e4567-e89b-42d3-a456-426614174000';
+    const result = validateSubmitBody({
+      installationId,
+      mappings: [
+        {
+          siteKey: 'teamtailor:career.cafler.com',
+          fieldSignature: JSON.stringify({
+            v: 1,
+            tag: 'input',
+            type: 'checkbox',
+            autocomplete: '',
+            name: 'future_offers',
+            label: 'accept contact for future offers',
+          }),
+          profileKey: 'futureOffersConsent',
+          sourceUrl: 'https://career.cafler.com/jobs/7696508-ai-product-owner',
+        },
+      ],
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.value?.mappings[0]).not.toHaveProperty('value');
   });
 
   it('matches adapter selectors and requires semantic agreement for sensitive community data', () => {
@@ -154,6 +263,83 @@ describe('public-release security boundaries', () => {
       profileKey: 'startDate',
       source: 'community',
       confidence: 0.75,
+    });
+  });
+
+  it('accepts an approved Bizneo signature when only the dynamic response index changes', () => {
+    load('src/content/adapters/adapter-base.js');
+    load('src/content/field-detector.js');
+    document.body.innerHTML = `
+      <label for="start">¿Cuándo podrías incorporarte?</label>
+      <input id="start" type="text" name="inscription_form[responses_attributes][9][response]">
+    `;
+    const start = document.getElementById('start') as HTMLInputElement;
+    vi.spyOn(start, 'getBoundingClientRect').mockReturnValue({
+      width: 200,
+      height: 30,
+      top: 0,
+      left: 0,
+      right: 200,
+      bottom: 30,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const approvedSignature = JSON.stringify({
+      v: 1,
+      tag: 'input',
+      type: 'text',
+      autocomplete: '',
+      name: 'inscription_formresponses_attributes6response',
+      label: 'cuándo podrías incorporarte',
+    });
+
+    const [result] = aam().FieldDetector.detectFields({
+      localMappings: {},
+      communityMappings: {
+        [approvedSignature]: { profileKey: 'startDate', source: 'community', confidence: 0.75 },
+      },
+    });
+
+    expect(result).toMatchObject({
+      profileKey: 'startDate',
+      source: 'community',
+      confidence: 0.75,
+    });
+  });
+
+  it('classifies the Bizneo availability question through the adapter without cloud data', async () => {
+    load('src/content/adapters/adapter-base.js');
+    load('src/content/adapters/bizneo.js');
+    load('src/content/field-detector.js');
+    document.body.innerHTML = `
+      <label for="start">¿Cuándo podrías incorporarte?</label>
+      <input id="start" type="text" name="inscription_form[responses_attributes][9][response]">
+    `;
+    const start = document.getElementById('start') as HTMLInputElement;
+    vi.spyOn(start, 'getBoundingClientRect').mockReturnValue({
+      width: 200,
+      height: 30,
+      top: 0,
+      left: 0,
+      right: 200,
+      bottom: 30,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const adapter = aam().Adapters.find((candidate: any) => candidate.name === 'Bizneo HR');
+
+    await adapter.prepare();
+    const [result] = aam().FieldDetector.detectFields(
+      { localMappings: {}, communityMappings: {} },
+      adapter.getKnownMappings()
+    );
+
+    expect(result).toMatchObject({
+      profileKey: 'startDate',
+      source: 'adapter',
+      confidence: 0.95,
     });
   });
 
@@ -474,6 +660,39 @@ describe('public-release security boundaries', () => {
     expect(aam().Storage.requestField).not.toHaveBeenCalled();
   });
 
+  it('enables match and share immediately for a preselected suggested mapping', () => {
+    load('src/content/adapters/adapter-base.js');
+    load('src/content/field-filler.js');
+    load('src/content/overlay.js');
+    const input = document.createElement('input');
+    input.id = 'start';
+    document.body.appendChild(input);
+
+    aam().Overlay.show(
+      { filled: 0, skipped: 1 },
+      [
+        {
+          element: input,
+          selector: '#start',
+          signature:
+            '{"v":1,"tag":"input","type":"text","autocomplete":"","name":"start","label":"cuándo podrías incorporarte"}',
+          profileKey: 'startDate',
+          confidence: 0.2,
+          context: 'cuándo podrías incorporarte',
+          displayLabel: '¿Cuándo podrías incorporarte?',
+          source: 'heuristic',
+        },
+      ],
+      'bizneo:ctaima'
+    );
+
+    const select = document.querySelector('.aam-zap-select') as HTMLSelectElement;
+    const confirmBtn = document.querySelector('.aam-zap-confirm') as HTMLButtonElement;
+    expect(select.value).toBe('startDate');
+    expect(confirmBtn.disabled).toBe(false);
+    expect(confirmBtn.textContent).toContain('Match & share');
+  });
+
   it('keeps mapping pickers hidden until a field is explicitly opened', () => {
     load('src/content/adapters/adapter-base.js');
     load('src/content/field-filler.js');
@@ -555,6 +774,9 @@ describe('public-release security boundaries', () => {
       'sticky'
     );
     expect(getComputedStyle(document.getElementById('aam-fields-show-all')!).flexShrink).toBe('0');
+    expect(document.querySelectorAll('#aam-fields-toggle')).toHaveLength(1);
+    expect(document.querySelector('.aam-field-label')?.textContent).toContain('Unknown');
+    expect(getComputedStyle(document.querySelector('.aam-stat-number')!).position).toBe('static');
 
     aam().Overlay.minimizeResult();
 
@@ -610,8 +832,30 @@ describe('public-release security boundaries', () => {
     const manifest = JSON.parse(readFileSync(path.join(root, 'manifest.json'), 'utf8'));
     expect(manifest.host_permissions).not.toContain('https://*/*');
     expect(manifest.host_permissions).toContain('https://*.careers.ats.bizneo.cloud/jobs/*');
-    expect(manifest.content_scripts[0].all_frames).toBe(false);
+    expect(manifest.content_scripts[0].matches).toContain('https://jobs.ashbyhq.com/*');
+    expect(manifest.content_scripts[0].matches).toContain('https://career.cafler.com/*');
+    expect(manifest.content_scripts[0].matches).toContain('https://www.gelato.com/careers/*');
+    expect(manifest.content_scripts[0].all_frames).toBe(true);
     expect(manifest.permissions).toContain('downloads');
+  });
+
+  it('supports generic pages through temporary activeTab injection without global host access', () => {
+    const background = readFileSync(path.join(root, 'src/background/service-worker.js'), 'utf8');
+    const popup = readFileSync(path.join(root, 'src/popup/popup.js'), 'utf8');
+
+    expect(background).toContain('authorizedAutofillDocuments');
+    expect(background).toContain('allFrames: true');
+    expect(background).toContain('frame.frameId !== 0 && AAM.getSupportedATS(frame.url)');
+    expect(background).toContain('chrome.runtime.getManifest().content_scripts');
+    expect(popup).toContain('/^https?:/i.test(tab.url)');
+  });
+
+  it('waits for the Ashby iframe on Gelato instead of falling back to generic autofill', () => {
+    const background = readFileSync(path.join(root, 'src/background/service-worker.js'), 'utf8');
+    expect(background).toContain('waitForEmbeddedATSFrame(tabId, expectedEmbeddedATS)');
+    expect(background).toContain(
+      '!expectedEmbeddedATS ? frames.find(frame => frame.frameId === 0) : null'
+    );
   });
 
   it('neutralizes spreadsheet formulas during CSV export', () => {
@@ -649,6 +893,16 @@ describe('public-release security boundaries', () => {
     expect((document.getElementById('tab-admin') as HTMLButtonElement).hidden).toBe(false);
   });
 
+  it('generates checkbox definitions for consent field requests', () => {
+    load('src/options/options.js');
+    const snippet = (window as any).buildFieldSnippet({
+      suggested_label: 'Accept contact for future offers',
+      field_signature: { tag: 'input', type: 'checkbox' },
+    });
+    expect(snippet).toContain("type: 'checkbox'");
+    expect(snippet).toContain("key: 'acceptContactForFutureOffers'");
+  });
+
   it('accepts community mapping submissions including sensitive fields, rejects only resume/CV and unknown keys', () => {
     const installationId = 'c8b22106-f267-4c74-b8b4-63131f91781f';
     const sig = (overrides: object) =>
@@ -676,9 +930,24 @@ describe('public-release security boundaries', () => {
               label: 'email address',
             }),
             profileKey: 'email',
+            sourceUrl: 'https://boards.greenhouse.io/acme/jobs/123?gh_jid=123#application',
           },
         ],
-      }).value
+      }).value?.mappings[0].sourceUrl
+    ).toBe('https://boards.greenhouse.io/acme/jobs/123?gh_jid=123');
+
+    expect(
+      validateSubmitBody({
+        installationId,
+        mappings: [
+          {
+            siteKey: 'greenhouse:boards.greenhouse.io:acme',
+            fieldSignature: sig({ name: 'email', label: 'email address' }),
+            profileKey: 'email',
+            sourceUrl: 'javascript:alert(1)',
+          },
+        ],
+      }).error
     ).toBeDefined();
 
     // Sensitive field — now accepted (selector structure, not value)
@@ -762,5 +1031,16 @@ describe('public-release security boundaries', () => {
     expect(userSessionRead).toBeGreaterThan(communitySessionStart);
     expect(userSessionRead).toBeLessThan(anonymousSessionRead);
     expect(source).toContain('Community submission failed (${response.status}): ${detail}');
+  });
+
+  it('refreshes approved mappings for every autofill and only uses cache after a network failure', () => {
+    const source = readFileSync(path.join(root, 'src/background/service-worker.js'), 'utf8');
+    const getSiteMappingsStart = source.indexOf('async function getSiteMappings');
+    const getSiteMappingsEnd = source.indexOf('async function saveMapping', getSiteMappingsStart);
+    const getSiteMappingsSource = source.slice(getSiteMappingsStart, getSiteMappingsEnd);
+
+    expect(getSiteMappingsSource).toContain('getApprovedMappings(siteKey, { forceRefresh: true })');
+    expect(getSiteMappingsSource).toContain('return cachedCommunity');
+    expect(getSiteMappingsSource).not.toContain('promiseWithTimeout');
   });
 });

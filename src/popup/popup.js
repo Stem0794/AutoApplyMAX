@@ -82,8 +82,8 @@ async function triggerAutofill() {
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url || !AAM.getSupportedATS(tab.url)) {
-      throw new Error('Open a supported job application page first.');
+    if (!tab?.id || !tab.url || !/^https?:/i.test(tab.url)) {
+      throw new Error('Open a job application page first.');
     }
     const response = await chrome.runtime.sendMessage({
       type: AAM.CONSTANTS.MSG.TRIGGER_AUTOFILL,

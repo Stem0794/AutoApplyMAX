@@ -55,6 +55,8 @@
           input.dataset.aamBizneo = 'salary';
         } else if (/formaci[oó]n acad[eé]mica|nivel de estudios|titulaci[oó]n/.test(text)) {
           input.dataset.aamBizneo = 'education';
+        } else if (/incorporarte|incorporaci[oó]n|disponibilidad/.test(text)) {
+          input.dataset.aamBizneo = 'start-date';
         } else if (/por qué.*interesa|motivaci/.test(text)) {
           input.dataset.aamBizneo = 'motivation';
         }
@@ -99,6 +101,10 @@
         {
           selector: 'input[data-aam-bizneo="education"]',
           profileKey: 'education',
+        },
+        {
+          selector: 'input[data-aam-bizneo="start-date"]',
+          profileKey: 'startDate',
         },
         {
           selector: 'input[data-aam-bizneo="motivation"]',

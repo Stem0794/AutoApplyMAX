@@ -290,6 +290,31 @@ body {
   display: none;
 }
 
+.form-group.profile-consent {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.form-group.profile-consent label {
+  margin: 0;
+  cursor: pointer;
+}
+
+.form-group.profile-consent input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
 .toggle {
   width: 44px;
   height: 24px;

@@ -280,6 +280,42 @@ AAM.PROFILE_FIELDS = [
     aliases: [/privacy[\s_-]?(policy|notice)/i, /data[\s_-]?protection/i, /personal[\s_-]?data/i],
   },
   {
+    key: 'futureOffersConsent',
+    label: 'Consent to Contact for Future Offers',
+    type: 'checkbox',
+    group: 'additional',
+    keywords: [
+      'accept contact for future offers',
+      'contact for future offers',
+      'future job offers',
+      'future opportunities',
+      'talent pool',
+    ],
+    aliases: [
+      /accept[\s_-]?contact[\s_-]?for[\s_-]?future[\s_-]?offers/i,
+      /future[\s_-]?(job[\s_-]?)?(offers|opportunities)/i,
+      /talent[\s_-]?pool/i,
+    ],
+  },
+  {
+    key: 'dataProcessingConsent',
+    label: 'Consent to Process Personal Data',
+    type: 'checkbox',
+    group: 'additional',
+    keywords: [
+      'accept process of data',
+      'process personal data',
+      'processing of personal data',
+      'data processing consent',
+      'consent to data processing',
+    ],
+    aliases: [
+      /accept[\s_-]?process[\s_-]?of[\s_-]?data/i,
+      /process(ing)?[\s_-]?(of[\s_-]?)?personal[\s_-]?data/i,
+      /data[\s_-]?processing[\s_-]?consent/i,
+    ],
+  },
+  {
     key: 'gender',
     label: 'Gender',
     type: 'text',
@@ -318,19 +354,28 @@ AAM.PROFILE_MAP = {};
 AAM.SENSITIVE_PROFILE_KEYS = new Set([
   'salaryExpectation',
   'privacyPolicyConsent',
+  'futureOffersConsent',
+  'dataProcessingConsent',
   'gender',
   'ethnicity',
   'veteranStatus',
   'disabilityStatus',
 ]);
-// Only the file-upload field is excluded from community mapping — the selector
-// for a salary/gender/etc. field is useful structural data, not a value.
-AAM.NON_CLOUD_PROFILE_KEYS = new Set(['resumeFile']);
+AAM.NON_AUTOFILLABLE_PROFILE_KEYS = new Set([
+  'privacyPolicyConsent',
+]);
+// Documents and generic legal consent stay local. The two explicit opt-in
+// consent signatures are shareable, but their boolean values never leave the
+// installation.
+AAM.NON_CLOUD_PROFILE_KEYS = new Set([
+  'resumeFile',
+  'privacyPolicyConsent',
+]);
 AAM.PROFILE_FIELDS.forEach(f => {
   f.sensitivity = f.key === 'resumeFile'
     ? 'document'
     : (AAM.SENSITIVE_PROFILE_KEYS.has(f.key) ? 'sensitive' : 'standard');
-  f.autofillable = f.key !== 'privacyPolicyConsent';
+  f.autofillable = !AAM.NON_AUTOFILLABLE_PROFILE_KEYS.has(f.key);
   f.cloudMappable = !AAM.NON_CLOUD_PROFILE_KEYS.has(f.key);
   // Profile values are user-authored and may be autofilled consistently.
   // Legal/privacy consent remains non-autofillable regardless of sensitivity.

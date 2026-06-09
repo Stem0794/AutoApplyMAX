@@ -378,6 +378,37 @@ AAM.FieldDetector = {
     });
   },
 
+  findCommunityMapping(communityMappings, signature) {
+    if (communityMappings[signature]) return communityMappings[signature];
+
+    let current;
+    try {
+      current = JSON.parse(signature);
+    } catch {
+      return null;
+    }
+
+    const normalizeDynamicName = value => String(value || '').replace(/\d+/g, '#');
+    for (const [approvedSignature, mapping] of Object.entries(communityMappings)) {
+      try {
+        const approved = JSON.parse(approvedSignature);
+        if (
+          approved.v === current.v &&
+          approved.tag === current.tag &&
+          approved.type === current.type &&
+          approved.autocomplete === current.autocomplete &&
+          approved.label === current.label &&
+          normalizeDynamicName(approved.name) === normalizeDynamicName(current.name)
+        ) {
+          return mapping;
+        }
+      } catch {
+        // Ignore malformed remote signatures.
+      }
+    }
+    return null;
+  },
+
   /**
    * Detect all form fields and return a mapping of each field to its
    * best-matching profile key + confidence score.
@@ -454,7 +485,7 @@ AAM.FieldDetector = {
         }
       }
 
-      const communityMapping = communityMappings[signature];
+      const communityMapping = this.findCommunityMapping(communityMappings, signature);
       if (communityMapping && AAM.isCloudMappableProfileKey(communityMapping.profileKey)) {
         const communityDefinition = AAM.PROFILE_MAP[communityMapping.profileKey];
         const semanticScore = this.scoreMatch(context, communityDefinition, field);

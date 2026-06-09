@@ -60,8 +60,11 @@ flow in the extension.
 | 0005 | `202606080005_reviewer_force_approve.sql` | Historical reviewer auto-approval behavior, superseded by migration 0008. |
 | 0006 | `202606080006_field_requests.sql` | `field_requests` table + RLS (insert own, read own/reviewer). |
 | 0007 | `202606080007_admin_review_and_sensitive_fields.sql` | Widens `is_allowed_mapping_profile_key` to include sensitive keys and narrows `field_signature_contains_restricted_semantics` to only résumé/CV; adds the reviewer RPC `set_field_request_status` for the options-page Admin tab. |
+| 0012 | `202606090005_allow_explicit_consent_signatures.sql` | Allows community sharing of normalized signatures for explicit future-offer and data-processing consent fields; boolean user choices remain local. |
 | 0008 | `202606090001_require_manual_mapping_review.sql` | Removes reviewer auto-approval so reviewer submissions enter the pending queue for explicit review. |
 | 0009 | `202606090002_disable_community_autoapproval.sql` | Disables N=3 auto-approval for the manual-review-only v1 release. |
+| 0010 | `202606090003_add_mapping_source_url.sql` | Stores a validated HTTPS source-form URL with each contribution for reviewer verification. |
+| 0011 | `202606090004_allow_pending_source_url_update.sql` | Lets submitters attach the source URL when retrying an existing pending contribution, without making mapping fields mutable. |
 
 > There is no `0004` — the number was skipped during development. Order is by filename;
 > the gap is harmless.

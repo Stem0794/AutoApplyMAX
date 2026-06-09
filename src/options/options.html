@@ -227,18 +227,18 @@
             <h3>New-field requests</h3>
             <button type="button" id="btn-refresh-requests" class="btn btn-outline">Refresh</button>
           </div>
-          <p class="setting-desc">Users requesting a profile field the app doesn't have yet. "Promote" generates a ready-to-paste field definition.</p>
+          <p class="setting-desc">Click <strong>Approve for release</strong> to infer the field type, copy a ready definition, and move the request to the release queue.</p>
           <div id="admin-requests-content"><p class="empty-state">Loading…</p></div>
         </div>
 
         <!-- Snippet output for promoting a request into a PROFILE_FIELDS entry -->
         <div id="admin-snippet" class="admin-snippet hidden">
           <div class="panel-header-row">
-            <h3>Add to <code>src/shared/profile-schema.js</code></h3>
+            <h3>Approved field definition</h3>
             <button type="button" id="btn-copy-snippet" class="btn btn-outline">Copy</button>
           </div>
           <pre id="admin-snippet-code"></pre>
-          <p class="setting-desc">Paste this object into <code>AAM.PROFILE_FIELDS</code>, adjust the type/keywords if needed, then ship an extension update. The request was marked <strong>planned</strong>.</p>
+          <p class="setting-desc">The definition is already copied. Add it to <code>AAM.PROFILE_FIELDS</code>, release the extension, then click <strong>Mark released</strong>.</p>
         </div>
       </div>
 

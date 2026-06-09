@@ -217,6 +217,7 @@ const PLATFORMS: Platform[] = [
              data-expected="resumeFile">
       <input type="text" data-aam-bizneo="salary" data-expected="salaryExpectation">
       <input type="text" data-aam-bizneo="education" data-expected="education">
+      <input type="text" data-aam-bizneo="start-date" data-expected="startDate">
       <input type="text" data-aam-bizneo="motivation" data-expected="coverLetter">
       <input type="checkbox"
              name="inscription_form[terms_and_conditions]"

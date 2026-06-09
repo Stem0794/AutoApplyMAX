@@ -23,6 +23,7 @@
     "https://*.mainder.ai/*",
     "https://jobs.ashbyhq.com/*",
     "https://*.ashbyhq.com/*",
+    "https://www.gelato.com/careers/*",
     "https://*.smartrecruiters.com/*",
     "https://*.icims.com/*",
     "https://*.successfactors.com/*",
@@ -30,6 +31,7 @@
     "https://*.taleo.net/*",
     "https://*.recruitee.com/*",
     "https://*.teamtailor.com/*",
+    "https://career.cafler.com/*",
     "https://*.applytojob.com/*",
     "https://*.breezy.hr/*",
     "https://*.jobvite.com/*",
@@ -65,6 +67,10 @@
         "https://www.revolut.com/*",
         "https://apply.workable.com/*",
         "https://*.mainder.ai/*",
+        "https://jobs.ashbyhq.com/*",
+        "https://*.ashbyhq.com/*",
+        "https://www.gelato.com/careers/*",
+        "https://career.cafler.com/*",
         "https://www.jobfluent.com/jobs/*",
         "https://*.careers.ats.bizneo.cloud/jobs/*"
       ],
@@ -104,7 +110,7 @@
       ],
       "css": [],
       "run_at": "document_idle",
-      "all_frames": false
+      "all_frames": true
     }
   ],
   "icons": {

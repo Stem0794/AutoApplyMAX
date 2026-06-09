@@ -8,7 +8,10 @@
     name: 'Teamtailor',
 
     matches() {
-      return AAM.isExactOrSubdomain(window.location.hostname, 'teamtailor.com');
+      return (
+        AAM.isExactOrSubdomain(window.location.hostname, 'teamtailor.com') ||
+        window.location.hostname === 'career.cafler.com'
+      );
     },
 
     getSiteKey() {
@@ -18,7 +21,7 @@
     async prepare() {
       await this.waitForElement(
         'form, #job_application_first_name, input[name="job_application[first_name]"]',
-        4000
+        8000
       );
     },
 

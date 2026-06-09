@@ -33,6 +33,23 @@
                 <p class="hint">One-click prefill for recognized platforms.</p>
             </div>
 
+            <section id="review-section" class="review-section hidden" aria-live="polite">
+                <div class="review-heading">
+                    <div>
+                        <h2 id="review-title">Review autofill</h2>
+                        <p id="review-notice"></p>
+                    </div>
+                    <button id="review-close" class="icon-btn" title="Hide review">&times;</button>
+                </div>
+                <div class="review-stats">
+                    <div><strong id="review-filled">0</strong><span>Filled</span></div>
+                    <div><strong id="review-skipped">0</strong><span>Skipped</span></div>
+                    <div><strong id="review-count">0</strong><span>Review</span></div>
+                </div>
+                <button id="review-toggle-all" class="review-toggle hidden" type="button"></button>
+                <div id="review-fields" class="review-fields"></div>
+            </section>
+
             <div class="stats-section">
                 <h3>Application Stats</h3>
                 <div class="stats-grid">
@@ -64,6 +81,7 @@
     </div>
 
     <script src="../shared/constants.js"></script>
+    <script src="../shared/profile-schema.js"></script>
     <script src="../shared/storage.js"></script>
     <script src="sidepanel.js"></script>
 </body>

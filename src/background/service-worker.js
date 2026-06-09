@@ -16,6 +16,9 @@ const reportedDriftHosts = new Set();
 /** host|label pairs we've already submitted as field requests this lifetime. */
 const requestedFieldKeys = new Set();
 const approvedMappingsCache = new Map();
+const authorizedAutofillDocuments = new Map();
+const latestAutofillTargets = new Map();
+const latestReviewStates = new Map();
 const APPROVED_MAPPINGS_CACHE_MS = 5 * 60 * 1000;
 let communitySessionPromise = null;
 
@@ -35,6 +38,11 @@ chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch(error => console.error(error));
 
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.url) clearAuthorizedAutofillDocuments(tabId);
+});
+chrome.tabs.onRemoved.addListener(tabId => clearAuthorizedAutofillDocuments(tabId));
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   initializationPromise
     .then(() => handleMessage(message, sender))
@@ -52,6 +60,27 @@ async function handleMessage(message, sender) {
     case AAM.CONSTANTS.MSG.TRIGGER_AUTOFILL:
       assertExtensionPageSender(sender);
       return triggerAutofill(message);
+    case AAM.CONSTANTS.MSG.TRIGGER_ACTIVE_PAGE:
+      assertSupportedContentSender(sender);
+      return triggerAutofill({
+        requestId: message.requestId,
+        tabId: sender.tab.id,
+        expectedOrigin: new URL(sender.tab.url).origin,
+      });
+    case AAM.CONSTANTS.MSG.OPEN_SIDE_PANEL:
+      assertSupportedContentSender(sender);
+      await chrome.sidePanel.open({ tabId: sender.tab.id });
+      return { ok: true };
+    case AAM.CONSTANTS.MSG.REVIEW_FIELD_ACTION:
+      assertExtensionPageSender(sender);
+      return forwardReviewFieldAction(message);
+    case AAM.CONSTANTS.MSG.AUTOFILL_COMPLETED:
+      assertSupportedContentSender(sender);
+      latestReviewStates.set(sender.tab.id, message.result);
+      return { ok: true };
+    case AAM.CONSTANTS.MSG.GET_REVIEW_STATE:
+      assertExtensionPageSender(sender);
+      return latestReviewStates.get(Number(message.tabId)) || null;
     case AAM.CONSTANTS.MSG.STORAGE_OPERATION:
       return handleStorageOperation(message, sender);
     case AAM.CONSTANTS.MSG.SAVE_RESUME:
@@ -107,7 +136,15 @@ function assertExtensionPageSender(sender) {
 }
 
 function assertSupportedContentSender(sender) {
-  if (!sender.tab || !sender.url || !AAM.getSupportedATS(sender.url)) {
+  if (!sender.tab || !sender.url) {
+    throw new Error('Unsupported sender origin');
+  }
+  if (AAM.getSupportedATS(sender.url)) return;
+
+  const authorization = authorizedAutofillDocuments.get(
+    `${sender.tab.id}:${Number(sender.frameId || 0)}`
+  );
+  if (!authorization || new URL(sender.url).origin !== authorization.origin) {
     throw new Error('Unsupported sender origin');
   }
 }
@@ -120,54 +157,133 @@ async function triggerAutofill(message) {
 
   const tab = await chrome.tabs.get(tabId);
   const tabUrl = new URL(tab.url || tab.pendingUrl || '');
-  if (!AAM.getSupportedATS(tabUrl) || tabUrl.origin !== message.expectedOrigin) {
-    throw new Error('This site is not supported or the active page changed');
+  if (!isSafeWebUrl(tabUrl) || tabUrl.origin !== message.expectedOrigin) {
+    throw new Error('This page cannot be autofilled or the active page changed');
   }
 
+  const expectedEmbeddedATS = getExpectedEmbeddedATS(tabUrl);
+  const frames = expectedEmbeddedATS
+    ? await waitForEmbeddedATSFrame(tabId, expectedEmbeddedATS)
+    : await inspectInjectableFrames(tabId);
+  const targetFrame =
+    frames.find(frame => frame.frameId === 0 && AAM.getSupportedATS(frame.url)) ||
+    frames.find(frame => frame.frameId !== 0 && AAM.getSupportedATS(frame.url)) ||
+    (!expectedEmbeddedATS ? frames.find(frame => frame.frameId === 0) : null);
+  if (!targetFrame) throw new Error('No accessible application form was found');
+
+  await chrome.sidePanel.open({ tabId }).catch(() => {});
+  authorizeAutofillDocument(tabId, targetFrame.frameId, targetFrame.url);
+  latestAutofillTargets.set(tabId, {
+    frameId: targetFrame.frameId,
+    origin: new URL(targetFrame.url).origin,
+  });
   const payload = {
     type: AAM.CONSTANTS.MSG.TRIGGER_AUTOFILL,
     requestId: String(message.requestId || ''),
-    expectedOrigin: tabUrl.origin,
+    expectedOrigin: new URL(targetFrame.url).origin,
   };
 
   try {
-    return await chrome.tabs.sendMessage(tabId, payload, { frameId: 0 });
+    return await chrome.tabs.sendMessage(tabId, payload, { frameId: targetFrame.frameId });
   } catch {
-    await injectContentScripts(tabId);
+    await injectContentScripts(tabId, [targetFrame.frameId]);
     const updatedTab = await chrome.tabs.get(tabId);
     const updatedUrl = new URL(updatedTab.url || updatedTab.pendingUrl || '');
-    if (updatedUrl.origin !== tabUrl.origin || !AAM.getSupportedATS(updatedUrl)) {
+    if (updatedUrl.origin !== tabUrl.origin) {
       throw new Error('Page changed during autofill initialization');
     }
-    return chrome.tabs.sendMessage(tabId, payload, { frameId: 0 });
+    const [updatedFrame] = await inspectInjectableFrames(tabId, [targetFrame.frameId]);
+    if (!updatedFrame || new URL(updatedFrame.url).origin !== payload.expectedOrigin) {
+      throw new Error('Application form changed during autofill initialization');
+    }
+    authorizeAutofillDocument(tabId, targetFrame.frameId, updatedFrame.url);
+    return chrome.tabs.sendMessage(tabId, payload, { frameId: targetFrame.frameId });
   }
 }
 
-async function injectContentScripts(tabId) {
-  const scripts = [
-    'src/shared/constants.js',
-    'src/shared/profile-schema.js',
-    'src/shared/storage.js',
-    'src/content/adapters/adapter-base.js',
-    'src/content/adapters/linkedin.js',
-    'src/content/adapters/greenhouse.js',
-    'src/content/adapters/lever.js',
-    'src/content/adapters/workable.js',
-    'src/content/adapters/mainder.js',
-    'src/content/adapters/workday.js',
-    'src/content/adapters/revolut.js',
-    'src/content/adapters/hirehive.js',
-    'src/content/adapters/zoho.js',
-    'src/content/adapters/jobfluent.js',
-    'src/content/adapters/bizneo.js',
-    'src/content/field-detector.js',
-    'src/content/field-filler.js',
-    'src/content/learning-engine.js',
-    'src/content/overlay.js',
-    'src/content/autofill.js',
-    'src/content/application-logger.js',
-  ];
-  await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, files: scripts });
+function getExpectedEmbeddedATS(url) {
+  if (
+    url.hostname === 'www.gelato.com' &&
+    url.pathname === '/careers/jobs' &&
+    /^[0-9a-f-]{36}$/i.test(url.searchParams.get('ashby_jid') || '')
+  ) {
+    return 'ASHBY';
+  }
+  return null;
+}
+
+async function waitForEmbeddedATSFrame(tabId, expectedATS, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  let frames = [];
+  do {
+    frames = await inspectInjectableFrames(tabId);
+    if (frames.some(frame => frame.frameId !== 0 && AAM.getSupportedATS(frame.url) === expectedATS)) {
+      return frames;
+    }
+    await new Promise(resolve => setTimeout(resolve, 250));
+  } while (Date.now() < deadline);
+  return frames;
+}
+
+function isSafeWebUrl(url) {
+  return url.protocol === 'https:' || url.protocol === 'http:';
+}
+
+function authorizeAutofillDocument(tabId, frameId, urlValue) {
+  const url = new URL(urlValue);
+  authorizedAutofillDocuments.set(`${tabId}:${frameId}`, { origin: url.origin });
+}
+
+function clearAuthorizedAutofillDocuments(tabId) {
+  const prefix = `${tabId}:`;
+  for (const key of authorizedAutofillDocuments.keys()) {
+    if (key.startsWith(prefix)) authorizedAutofillDocuments.delete(key);
+  }
+  latestAutofillTargets.delete(tabId);
+  latestReviewStates.delete(tabId);
+}
+
+async function inspectInjectableFrames(tabId, frameIds) {
+  const target = frameIds ? { tabId, frameIds } : { tabId, allFrames: true };
+  const results = await chrome.scripting.executeScript({
+    target,
+    func: () => window.location.href,
+  });
+  return results
+    .filter(result => typeof result.result === 'string')
+    .map(result => ({ frameId: result.frameId, url: result.result }))
+    .filter(frame => {
+      try {
+        return isSafeWebUrl(new URL(frame.url));
+      } catch {
+        return false;
+      }
+    });
+}
+
+async function injectContentScripts(tabId, frameIds) {
+  const scripts = chrome.runtime.getManifest().content_scripts?.[0]?.js || [];
+  await chrome.scripting.executeScript({ target: { tabId, frameIds }, files: scripts });
+}
+
+async function forwardReviewFieldAction(message) {
+  const tabId = Number(message.tabId);
+  const target = latestAutofillTargets.get(tabId);
+  if (!Number.isInteger(tabId) || !target) {
+    throw new Error('The reviewed application page is no longer available');
+  }
+  return chrome.tabs.sendMessage(
+    tabId,
+    {
+      type: AAM.CONSTANTS.MSG.REVIEW_FIELD_ACTION,
+      requestId: String(message.requestId || ''),
+      expectedOrigin: target.origin,
+      action: message.action,
+      fieldIndex: Number(message.fieldIndex),
+      profileKey: message.profileKey,
+    },
+    { frameId: target.frameId }
+  );
 }
 
 async function handleStorageOperation(message, sender) {
@@ -258,6 +374,10 @@ function sanitizeAutofillProfile(profile) {
   for (const field of AAM.PROFILE_FIELDS) {
     if (!field.autofillable || field.type === 'file') continue;
     const value = profile[field.key];
+    if (field.type === 'checkbox' && value === true) {
+      clean[field.key] = true;
+      continue;
+    }
     if (typeof value === 'string' && value) clean[field.key] = value.slice(0, field.maxLength);
   }
   if (isResumeMetadata(profile.resumeAsset)) clean.resumeAsset = profile.resumeAsset;
@@ -269,6 +389,10 @@ function sanitizeStoredProfile(profile) {
   for (const field of AAM.PROFILE_FIELDS) {
     if (field.type === 'file') continue;
     const value = profile[field.key];
+    if (field.type === 'checkbox' && value === true) {
+      clean[field.key] = true;
+      continue;
+    }
     if (typeof value === 'string' && value.trim()) {
       clean[field.key] = value.trim().slice(0, field.maxLength);
     }
@@ -286,6 +410,10 @@ async function saveProfile(input) {
   for (const field of AAM.PROFILE_FIELDS) {
     if (field.type === 'file') continue;
     const value = input[field.key];
+    if (field.type === 'checkbox' && value === true) {
+      clean[field.key] = true;
+      continue;
+    }
     if (typeof value === 'string' && value.trim()) {
       clean[field.key] = value.trim().slice(0, field.maxLength);
     }
@@ -320,35 +448,20 @@ async function saveSettings(input) {
 
 async function getSiteMappings(siteKey, senderUrl) {
   validateSiteKey(siteKey, senderUrl);
-  const communityPromise = getApprovedMappings(siteKey).catch(error => {
+  const cachedCommunity = approvedMappingsCache.get(siteKey)?.value || {};
+  const communityPromise = getApprovedMappings(siteKey, { forceRefresh: true }).catch(error => {
     console.warn('[AutoApplyMAX] Community mappings unavailable:', error);
-    return {};
+    return cachedCommunity;
   });
   const [all, community] = await Promise.all([
     getStorageValue(AAM.CONSTANTS.STORAGE_MAPPINGS, {}),
-    promiseWithTimeout(communityPromise, 250, {}),
+    communityPromise,
   ]);
   const local = all[siteKey] || {};
   return {
     localMappings: sanitizeMappingObject(local, false),
     communityMappings: sanitizeMappingObject(community, true),
   };
-}
-
-function promiseWithTimeout(promise, timeoutMs, fallback) {
-  return new Promise(resolve => {
-    const timer = setTimeout(() => resolve(fallback), timeoutMs);
-    promise.then(
-      value => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      () => {
-        clearTimeout(timer);
-        resolve(fallback);
-      }
-    );
-  });
 }
 
 async function saveMapping(siteKey, selector, profileKey, signature, sender) {
@@ -378,7 +491,14 @@ async function saveMapping(siteKey, selector, profileKey, signature, sender) {
   }
 
   try {
-    await submitMappings([{ siteKey, signature, profileKey }]);
+    await submitMappings([
+      {
+        siteKey,
+        signature,
+        profileKey,
+        sourceUrl: normalizeContributionSourceUrl(sender.url),
+      },
+    ]);
     site[selector].communityStatus = 'submitted';
     site[selector].communitySubmittedAt = new Date().toISOString();
     await chrome.storage.local.set({ [AAM.CONSTANTS.STORAGE_MAPPINGS]: all });
@@ -418,7 +538,15 @@ function validateSiteKey(siteKey, senderUrl) {
   if (typeof siteKey !== 'string' || !/^[a-z0-9._:/-]{1,200}$/i.test(siteKey)) {
     throw new Error('Invalid site scope');
   }
-  if (senderUrl && !AAM.getSupportedATS(senderUrl)) throw new Error('Unsupported site');
+  if (senderUrl) {
+    let url;
+    try {
+      url = new URL(senderUrl);
+    } catch {
+      throw new Error('Unsupported site');
+    }
+    if (!isSafeWebUrl(url)) throw new Error('Unsupported site');
+  }
 }
 
 function validateSelector(selector) {
@@ -640,23 +768,33 @@ async function migrateStorage() {
   });
 }
 
-async function getApprovedMappings(siteKey) {
+async function getApprovedMappings(siteKey, { forceRefresh = false } = {}) {
   if (!AAM.CONSTANTS.COMMUNITY_API_URL || !AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY) return {};
   const cached = approvedMappingsCache.get(siteKey);
-  if (cached?.value && cached.expiresAt > Date.now()) return cached.value;
+  if (!forceRefresh && cached?.value && cached.expiresAt > Date.now()) return cached.value;
   if (cached?.promise) return cached.promise;
 
   const promise = (async () => {
     const session = await getCommunitySession();
     const url = new URL('/functions/v1/read-mappings', AAM.CONSTANTS.COMMUNITY_API_URL);
     url.searchParams.set('siteKey', siteKey);
-    const response = await fetch(url, {
-      headers: {
-        apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${session.accessToken}`,
-      },
-    });
-    if (!response.ok) return cached?.value || {};
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    let response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          apikey: AAM.CONSTANTS.COMMUNITY_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok) {
+      throw new Error(`Community mapping read failed (${response.status})`);
+    }
     const data = await response.json();
     const output = {};
     for (const row of data.mappings || []) {
@@ -693,6 +831,17 @@ async function getApprovedMappings(siteKey) {
   }
 }
 
+function normalizeContributionSourceUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password) return '';
+    url.hash = '';
+    return url.href.slice(0, 2048);
+  } catch {
+    return '';
+  }
+}
+
 async function submitMappings(mappings) {
   if (!Array.isArray(mappings) || mappings.length > 500)
     throw new Error('Invalid mappings payload');
@@ -724,6 +873,7 @@ async function submitMappings(mappings) {
           siteKey: item.siteKey,
           fieldSignature: item.signature,
           profileKey: item.profileKey,
+          sourceUrl: normalizeContributionSourceUrl(item.sourceUrl),
         })),
       }),
     }
@@ -1102,7 +1252,7 @@ async function authedFetch(path, init = {}) {
 
 async function adminListFieldRequests() {
   const response = await authedFetch(
-    '/rest/v1/field_requests?select=id,suggested_label,note,site_key,host,status,created_at&order=created_at.desc&limit=200'
+    '/rest/v1/field_requests?select=id,suggested_label,note,site_key,host,field_signature,status,created_at&order=created_at.desc&limit=200'
   );
   if (!response.ok) {
     throw new Error(
@@ -1130,7 +1280,7 @@ async function adminSetFieldRequestStatus(id, status) {
 async function adminListPendingMappings() {
   const response = await authedFetch(
     '/rest/v1/pending_mapping_submissions?review_status=eq.pending' +
-      '&select=id,site_key,field_signature,profile_key,submitted_by,created_at' +
+      '&select=id,site_key,field_signature,profile_key,source_url,submitted_by,created_at' +
       '&order=created_at.desc&limit=500'
   );
   if (!response.ok) {
@@ -1152,6 +1302,7 @@ async function adminListPendingMappings() {
         fieldSignature: row.field_signature,
         profileKey: row.profile_key,
         submissionId: row.id, // representative (most recent)
+        sourceUrl: row.source_url || '',
         submitters: new Set(),
         firstSeen: row.created_at,
       });
@@ -1167,6 +1318,7 @@ async function adminListPendingMappings() {
       fieldSignature: g.fieldSignature,
       profileKey: g.profileKey,
       submissionId: g.submissionId,
+      sourceUrl: g.sourceUrl,
       submitterCount: g.submitters.size,
       firstSeen: g.firstSeen,
     }))
@@ -1201,7 +1353,7 @@ async function adminReviewMapping(submissionId, decision, note, siteKey) {
   if (decision === 'approved') {
     approvedMappingsCache.clear();
     if (typeof siteKey === 'string' && siteKey) {
-      await getApprovedMappings(siteKey);
+      await getApprovedMappings(siteKey, { forceRefresh: true });
     }
   }
   return { ok: true };

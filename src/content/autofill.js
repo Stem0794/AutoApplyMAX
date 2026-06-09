@@ -9,6 +9,8 @@ var AAM = window.AAM || {};
 AAM.Autofill = {
   /** @type {boolean} */
   _running: false,
+  _reviewFields: [],
+  _reviewSiteKey: '',
 
   /**
    * Initialize the content script.
@@ -28,6 +30,16 @@ AAM.Autofill = {
         });
         return true; // keep the message channel open for async response
       }
+      if (msg.type === AAM.CONSTANTS.MSG.REVIEW_FIELD_ACTION) {
+        if (msg.expectedOrigin !== window.location.origin || !msg.requestId) {
+          sendResponse({ error: 'Review action does not match this document' });
+          return false;
+        }
+        this.handleReviewFieldAction(msg).then(sendResponse).catch(err => {
+          sendResponse({ error: err.message });
+        });
+        return true;
+      }
     });
 
     // Start the learning engine
@@ -40,11 +52,47 @@ AAM.Autofill = {
     console.log('[AutoApplyMAX] Content script loaded on', window.location.hostname);
   },
 
+  async handleReviewFieldAction(message) {
+    const fieldIndex = Number(message.fieldIndex);
+    const field = this._reviewFields[fieldIndex];
+    const profileKey = message.profileKey;
+    if (!field || !AAM.isProfileKey(profileKey)) {
+      throw new Error('Invalid review field mapping');
+    }
+    const saveResult = await AAM.Storage.saveMapping(
+      this._reviewSiteKey,
+      field.selector,
+      profileKey,
+      field.signature
+    );
+    const profile = await AAM.Storage.getProfile();
+    const value = profile?.[profileKey];
+    let filled = false;
+    if (
+      message.action === 'mapAndFill' &&
+      ((typeof value === 'string' && value) || value === true) &&
+      AAM.PROFILE_MAP[profileKey]?.autofillable &&
+      AAM.PROFILE_MAP[profileKey]?.type !== 'file'
+    ) {
+      filled = await AAM.FieldFiller.fillMappedField(field, profileKey, value);
+    }
+    field.profileKey = profileKey;
+    field.source = 'learned';
+    field.confidence = 1;
+    return {
+      saved: true,
+      filled,
+      communitySubmitted: Boolean(saveResult?.communitySubmitted),
+      communityError: saveResult?.communityError || '',
+    };
+  },
+
   /**
    * Check if the current page can be prefilled and show a proactive overlay button.
    */
   async checkAndShowTrigger() {
     if (this._triggerShown) return;
+    if (window.top !== window) return;
 
     console.log('[AutoApplyMAX] Checking if proactive trigger should show...');
     try {
@@ -66,17 +114,29 @@ AAM.Autofill = {
       // 3. Get the adapter
       const adapter = AAM.getAdapter();
       const isGeneric = adapter.name === 'Generic';
+      const hasEmbeddedATS = [...document.querySelectorAll('iframe[src]')].some(iframe =>
+        AAM.getSupportedATS(iframe.src)
+      );
 
       // 4. Look for fields (briefly)
       const detectedFields = AAM.FieldDetector.detectFields();
       console.log(`[AutoApplyMAX] Quick scan found ${detectedFields.length} fields. Adapter: ${adapter.name}`);
 
       // If we find any form fields AND it's a known ATS
-      if (detectedFields.length > 0 && !isGeneric) {
+      if ((detectedFields.length > 0 && !isGeneric) || hasEmbeddedATS) {
         console.log(`[AutoApplyMAX] Showing proactive trigger for ${adapter.name}`);
         this._triggerShown = true;
         AAM.Overlay.showTrigger(() => {
-          this.run();
+          if (hasEmbeddedATS) {
+            chrome.runtime
+              .sendMessage({
+                type: AAM.CONSTANTS.MSG.TRIGGER_ACTIVE_PAGE,
+                requestId: crypto.randomUUID(),
+              })
+              .catch(error => AAM.Overlay.showMessage(error.message, 'error'));
+          } else {
+            this.run();
+          }
         });
 
         if (this._triggerObserver) {
@@ -229,13 +289,8 @@ AAM.Autofill = {
       await adapter.afterFill(result);
 
       // 7. Show the overlay
-      if (settings.showOverlay !== false) {
-        AAM.Overlay.show({
-          filled: result.filled,
-          skipped: result.skipped,
-          unmatched: result.unmatched,
-        }, detectedFields, siteKey, driftNotice);
-      }
+      this._reviewFields = detectedFields;
+      this._reviewSiteKey = siteKey;
 
       // 8. Notify the background/sidepanel that we're done
       chrome.runtime.sendMessage({
@@ -244,7 +299,18 @@ AAM.Autofill = {
           filled: result.filled,
           skipped: result.skipped,
           unmatched: result.unmatched,
-          adapter: adapter.name
+          adapter: adapter.name,
+          siteKey,
+          notice: driftNotice,
+          fields: detectedFields.map((field, fieldIndex) => ({
+            fieldIndex,
+            label: field.displayLabel || `Field ${fieldIndex + 1}`,
+            context: field.context || '',
+            profileKey: field.profileKey || '',
+            source: field.source || 'unmatched',
+            confidence: Number(field.confidence) || 0,
+            status: field.status || '',
+          })),
         }
       });
 
