@@ -289,6 +289,22 @@ AAM.PROFILE_FIELDS = [
     keywords: ['disability', 'disability status', 'disabled'],
     aliases: [/disabilit/i, /disabled/i],
   },
+  {
+    key: 'acceptProcessOfData',
+    label: 'Accept Processing of Personal Data',
+    type: 'checkbox',
+    group: 'additional',
+    keywords: ['accept process of data', 'accept', 'process', 'of', 'data', 'processing personal data', 'data processing consent', 'rodo', 'gdpr consent'],
+    aliases: [/accept[\s_-]?process[\s_-]?of[\s_-]?data/i, /data[\s_-]?processing[\s_-]?consent/i, /processing[\s_-]?personal[\s_-]?data/i],
+  },
+  {
+    key: 'acceptContactForFutureOffers',
+    label: 'Accept Contact for Future Offers',
+    type: 'checkbox',
+    group: 'additional',
+    keywords: ['accept contact for future offers', 'accept', 'contact', 'for', 'future', 'offers', 'future job offers', 'talent pool', 'future opportunities'],
+    aliases: [/accept[\s_-]?contact[\s_-]?for[\s_-]?future[\s_-]?offers/i, /future[\s_-]?(job[\s_-]?)?offers/i, /talent[\s_-]?pool/i],
+  },
 ];
 
 // Build a quick-lookup map
@@ -296,6 +312,8 @@ AAM.PROFILE_MAP = {};
 AAM.SENSITIVE_PROFILE_KEYS = new Set([
   'salaryExpectation',
   'privacyPolicyConsent',
+  'acceptProcessOfData',
+  'acceptContactForFutureOffers',
   'gender',
   'ethnicity',
   'veteranStatus',
@@ -308,7 +326,7 @@ AAM.PROFILE_FIELDS.forEach(f => {
   f.sensitivity = f.key === 'resumeFile'
     ? 'document'
     : (AAM.SENSITIVE_PROFILE_KEYS.has(f.key) ? 'sensitive' : 'standard');
-  f.autofillable = f.key !== 'privacyPolicyConsent';
+  f.autofillable = f.key !== 'privacyPolicyConsent' && f.type !== 'checkbox';
   f.cloudMappable = !AAM.NON_CLOUD_PROFILE_KEYS.has(f.key);
   f.requiresConfirmation = f.sensitivity !== 'standard';
   f.maxLength = f.type === 'textarea' ? 10000 : 500;

@@ -22,6 +22,16 @@ AAM.FieldFiller = {
       return;
     }
 
+    // Handle checkboxes: value is a boolean (true = tick it)
+    if (el instanceof HTMLInputElement && el.type === 'checkbox') {
+      el.dataset.aamFilled = 'true';
+      const shouldCheck = value === true || value === 'true' || value === '1' || value === 'yes';
+      el.checked = shouldCheck;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
+
     el.dataset.aamFilled = 'true';
     const tagName = el.tagName.toUpperCase();
     const role = el.getAttribute('role');
@@ -243,19 +253,28 @@ AAM.FieldFiller = {
       }
 
       const value = profile[profileKey];
-      if (!value) {
+      const isCheckbox = element instanceof HTMLInputElement && element.type === 'checkbox';
+      if (!isCheckbox && !value) {
         detection.status = 'missing_value';
         skipped++;
         continue;
       }
 
-
       // Skip if already filled with the same value
-      const currentValue = element.value || element.textContent || '';
-      if (currentValue.trim() === value.trim()) {
-        detection.status = 'skipped_already_filled';
-        skipped++;
-        continue;
+      if (isCheckbox) {
+        const shouldCheck = value === true || value === 'true';
+        if (element.checked === shouldCheck) {
+          detection.status = 'skipped_already_filled';
+          skipped++;
+          continue;
+        }
+      } else {
+        const currentValue = element.value || element.textContent || '';
+        if (currentValue.trim() === String(value).trim()) {
+          detection.status = 'skipped_already_filled';
+          skipped++;
+          continue;
+        }
       }
 
       const fieldDefinition = AAM.PROFILE_MAP[profileKey];

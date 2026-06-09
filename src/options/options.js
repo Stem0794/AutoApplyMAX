@@ -102,6 +102,32 @@ function buildFormFields() {
 
         // Don't add default placeholder for file input
         input.placeholder = '';
+      } else if (field.type === 'checkbox') {
+        // Render as a toggle (label wraps input + toggle span)
+        label.setAttribute('for', 'field-' + field.key);
+        label.className = 'setting-item checkbox-field-item';
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'setting-info';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'setting-label';
+        nameSpan.textContent = field.label;
+        const descSpan = document.createElement('span');
+        descSpan.className = 'setting-desc';
+        descSpan.textContent = 'Tick this if you want the extension to check this consent box on your behalf (requires manual confirmation).';
+        infoDiv.appendChild(nameSpan);
+        infoDiv.appendChild(descSpan);
+        input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = 'field-' + field.key;
+        input.name = field.key;
+        const toggleSpan = document.createElement('span');
+        toggleSpan.className = 'toggle';
+        // Restructure: label already in div — replace it with the setting-item layout
+        div.innerHTML = '';
+        label.appendChild(infoDiv);
+        label.appendChild(input);
+        label.appendChild(toggleSpan);
+        div.appendChild(label);
       } else {
         input = document.createElement('input');
         input.type = field.type || 'text';
@@ -110,8 +136,8 @@ function buildFormFields() {
         input.placeholder = field.label + '...';
       }
 
-      // For 'file' type, input is already added. For others, add here.
-      if (field.type !== 'file') {
+      // For 'file' and 'checkbox' types, input is already added. For others, add here.
+      if (field.type !== 'file' && field.type !== 'checkbox') {
         div.appendChild(input);
       }
       container.appendChild(div);
@@ -128,8 +154,9 @@ async function loadProfile() {
     for (const [key, value] of Object.entries(profile)) {
       const input = document.querySelector(`[name="${key}"]`);
       if (input) {
-        // For regular inputs, or the file input itself
-        if (value) {
+        if (input.type === 'checkbox') {
+          input.checked = Boolean(value);
+        } else if (value) {
           input.value = value;
         }
       }
@@ -161,6 +188,11 @@ async function saveProfile() {
         profile.resumeAsset = response;
       } else if (_currentProfile.resumeAsset) {
         profile.resumeAsset = _currentProfile.resumeAsset;
+      }
+    } else if (fieldDef.type === 'checkbox') {
+      const input = form.querySelector(`[name="${fieldDef.key}"]`);
+      if (input) {
+        profile[fieldDef.key] = input.checked;
       }
     } else {
       const input = form.querySelector(`[name="${fieldDef.key}"]`);
