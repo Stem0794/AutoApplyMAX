@@ -706,4 +706,18 @@ describe('public-release security boundaries', () => {
       }).error
     ).toBeDefined();
   });
+
+  it('uses an authenticated account for community submissions before anonymous auth', () => {
+    const source = readFileSync(path.join(root, 'src/background/service-worker.js'), 'utf8');
+    const communitySessionStart = source.indexOf('async function getCommunitySession()');
+    const anonymousSessionRead = source.indexOf(
+      'AAM.CONSTANTS.STORAGE_COMMUNITY_SESSION',
+      communitySessionStart
+    );
+    const userSessionRead = source.indexOf('await getUserSession()', communitySessionStart);
+
+    expect(userSessionRead).toBeGreaterThan(communitySessionStart);
+    expect(userSessionRead).toBeLessThan(anonymousSessionRead);
+    expect(source).toContain('Community submission failed (${response.status}): ${detail}');
+  });
 });

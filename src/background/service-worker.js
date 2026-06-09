@@ -380,9 +380,15 @@ async function saveMapping(siteKey, selector, profileKey, signature, sender) {
     return { saved: true, communityEligible: true, communitySubmitted: true };
   } catch (error) {
     site[selector].communityStatus = 'failed';
+    site[selector].communityError = error instanceof Error ? error.message : 'Submission failed';
     await chrome.storage.local.set({ [AAM.CONSTANTS.STORAGE_MAPPINGS]: all });
     console.warn('[AutoApplyMAX] Community submission failed:', error);
-    return { saved: true, communityEligible: true, communitySubmitted: false };
+    return {
+      saved: true,
+      communityEligible: true,
+      communitySubmitted: false,
+      communityError: site[selector].communityError,
+    };
   }
 }
 
@@ -717,7 +723,16 @@ async function submitMappings(mappings) {
       }),
     }
   );
-  if (!response.ok) throw new Error('Community submission failed');
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    const detail =
+      typeof errorBody.message === 'string'
+        ? errorBody.message
+        : typeof errorBody.error === 'string'
+          ? errorBody.error
+          : 'unknown backend error';
+    throw new Error(`Community submission failed (${response.status}): ${detail}`);
+  }
   return response.json();
 }
 
@@ -856,6 +871,9 @@ async function getInstallationId() {
 }
 
 async function getCommunitySession() {
+  const userSession = await getUserSession().catch(() => null);
+  if (userSession?.accessToken) return userSession;
+
   const stored = await getStorageValue(AAM.CONSTANTS.STORAGE_COMMUNITY_SESSION, null);
   if (stored?.accessToken && Number(stored.expiresAt) > Date.now() + 60000) return stored;
 

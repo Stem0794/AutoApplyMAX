@@ -602,6 +602,7 @@ AAM.Overlay = {
           } else if (saveResult?.communityEligible) {
             communityStatus.className = 'aam-community-status is-warning';
             communityStatus.textContent =
+              saveResult.communityError ||
               'Saved locally. Community submission failed; map it again to retry.';
           } else {
             communityStatus.className = 'aam-community-status is-warning';

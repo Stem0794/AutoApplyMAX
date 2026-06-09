@@ -57,9 +57,11 @@ flow in the extension.
 | 0001 | `202606080001_mapping_registry.sql` | Core registry: `mapping_reviewers`, `installations`, `pending_mapping_submissions`, `approved_field_mappings`, `mapping_review_events`; validation functions (`is_mapping_reviewer`, `is_allowed_mapping_profile_key`, `field_signature_contains_restricted_semantics`, `is_valid_field_signature`); the `submit_mapping_submissions`, `approve_mapping_submission`, `reject_mapping_submission` RPCs; 500/hour rate limit; **all RLS policies and grants**. |
 | 0002 | `202606080002_add_profiles_table.sql` | `profiles` table (cloud profile sync) + owner-only RLS. |
 | 0003 | `202606080003_community_autoapprove_and_drift.sql` | Auto-approval after **N=3** independent agreements (`try_auto_approve_mapping` + `pending_mapping_community_autoapprove` trigger); `adapter_drift_signals` table; adds `approval_method` / `community_submitter_count`. |
-| 0005 | `202606080005_reviewer_force_approve.sql` | `force_approve_mapping()` + updated trigger so a **reviewer's** submission is approved immediately, bypassing N=3. |
+| 0005 | `202606080005_reviewer_force_approve.sql` | Historical reviewer auto-approval behavior, superseded by migration 0008. |
 | 0006 | `202606080006_field_requests.sql` | `field_requests` table + RLS (insert own, read own/reviewer). |
 | 0007 | `202606080007_admin_review_and_sensitive_fields.sql` | Widens `is_allowed_mapping_profile_key` to include sensitive keys and narrows `field_signature_contains_restricted_semantics` to only résumé/CV; adds the reviewer RPC `set_field_request_status` for the options-page Admin tab. |
+| 0008 | `202606090001_require_manual_mapping_review.sql` | Removes reviewer auto-approval so reviewer submissions enter the pending queue for explicit review. |
+| 0009 | `202606090002_disable_community_autoapproval.sql` | Disables N=3 auto-approval for the manual-review-only v1 release. |
 
 > There is no `0004` — the number was skipped during development. Order is by filename;
 > the gap is harmless.
@@ -162,13 +164,12 @@ user maps a field (⚡ zap)               reviewer (you)
         ▼                                      ▼
 submit-mappings ──► pending_mapping_submissions
         │                    │
-        │      ┌─────────────┴───────────────┐
-        │      ▼                              ▼
-        │  N=3 distinct users agree     reviewer approves
-        │  → try_auto_approve_mapping   → approve_mapping_submission
-        │      │                          (or force_approve if the
-        │      ▼                           submitter is a reviewer)
-        └──► approved_field_mappings ◄────────┘
+        │                    │
+        │                    ▼
+        │             reviewer approves
+        │             → approve_mapping_submission
+        │                    │
+        └──► approved_field_mappings ◄───┘
                      │
                      ▼
              read-mappings ──► served to all clients
