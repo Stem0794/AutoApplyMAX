@@ -74,14 +74,14 @@ describe('public-release security boundaries', () => {
     expect(aam().PROFILE_MAP.privacyPolicyConsent.autofillable).toBe(false);
   });
 
-  it('matches adapter selectors against elements and requires semantic agreement for community data', () => {
+  it('matches adapter selectors and requires semantic agreement for sensitive community data', () => {
     load('src/content/adapters/adapter-base.js');
     load('src/content/field-detector.js');
     document.body.innerHTML = `
       <label for="first">First name</label>
       <input id="first" name="candidate_first">
-      <label for="salary">Unrelated value</label>
-      <input id="salary" name="unrelated">
+      <label for="opaque">Unrelated value</label>
+      <input id="opaque" name="unrelated">
     `;
     for (const element of document.querySelectorAll('input')) {
       vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
@@ -98,7 +98,7 @@ describe('public-release security boundaries', () => {
     }
 
     const first = document.getElementById('first') as HTMLInputElement;
-    const salary = document.getElementById('salary') as HTMLInputElement;
+    const salary = document.getElementById('opaque') as HTMLInputElement;
     const firstSignature = aam().FieldDetector.buildSignature(first);
     const salarySignature = aam().FieldDetector.buildSignature(salary);
     const results = aam().FieldDetector.detectFields(
@@ -106,14 +106,55 @@ describe('public-release security boundaries', () => {
         localMappings: {},
         communityMappings: {
           [firstSignature]: { profileKey: 'firstName', source: 'community', confidence: 0.75 },
-          [salarySignature]: { profileKey: 'email', source: 'community', confidence: 0.75 },
+          [salarySignature]: {
+            profileKey: 'salaryExpectation',
+            source: 'community',
+            confidence: 0.75,
+          },
         },
       },
       [{ selector: '#first', profileKey: 'firstName' }]
     );
 
     expect(results.find((result: any) => result.element === first).source).toBe('adapter');
-    expect(results.find((result: any) => result.element === salary).profileKey).not.toBe('email');
+    expect(results.find((result: any) => result.element === salary).profileKey).not.toBe(
+      'salaryExpectation'
+    );
+  });
+
+  it('accepts an exact approved standard-field signature in another language', () => {
+    load('src/content/adapters/adapter-base.js');
+    load('src/content/field-detector.js');
+    document.body.innerHTML = `
+      <label for="start">¿Cuándo podrías incorporarte?</label>
+      <input id="start" name="inscription_form[responses_attributes][6][response]">
+    `;
+    const start = document.getElementById('start') as HTMLInputElement;
+    vi.spyOn(start, 'getBoundingClientRect').mockReturnValue({
+      width: 200,
+      height: 30,
+      top: 0,
+      left: 0,
+      right: 200,
+      bottom: 30,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const signature = aam().FieldDetector.buildSignature(start);
+
+    const [result] = aam().FieldDetector.detectFields({
+      localMappings: {},
+      communityMappings: {
+        [signature]: { profileKey: 'startDate', source: 'community', confidence: 0.75 },
+      },
+    });
+
+    expect(result).toMatchObject({
+      profileKey: 'startDate',
+      source: 'community',
+      confidence: 0.75,
+    });
   });
 
   it('never embeds resume bytes in page DOM and ignores synthetic download clicks', async () => {

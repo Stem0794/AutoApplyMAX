@@ -458,7 +458,8 @@ AAM.FieldDetector = {
       if (communityMapping && AAM.isCloudMappableProfileKey(communityMapping.profileKey)) {
         const communityDefinition = AAM.PROFILE_MAP[communityMapping.profileKey];
         const semanticScore = this.scoreMatch(context, communityDefinition, field);
-        if (semanticScore >= AAM.CONSTANTS.CONFIDENCE_LOW) {
+        const requiresSemanticAgreement = communityDefinition.sensitivity === 'sensitive';
+        if (!requiresSemanticAgreement || semanticScore >= AAM.CONSTANTS.CONFIDENCE_LOW) {
           bestKey = communityMapping.profileKey;
           bestScore = Math.max(semanticScore, 0.75);
         }

@@ -89,7 +89,12 @@ async function handleMessage(message, sender) {
       return adminListPendingMappings();
     case AAM.CONSTANTS.MSG.ADMIN_REVIEW_MAPPING:
       assertExtensionPageSender(sender);
-      return adminReviewMapping(message.submissionId, message.decision, message.note);
+      return adminReviewMapping(
+        message.submissionId,
+        message.decision,
+        message.note,
+        message.siteKey
+      );
     default:
       return { error: 'Unsupported message type' };
   }
@@ -1168,7 +1173,7 @@ async function adminListPendingMappings() {
     .sort((a, b) => b.submitterCount - a.submitterCount);
 }
 
-async function adminReviewMapping(submissionId, decision, note) {
+async function adminReviewMapping(submissionId, decision, note, siteKey) {
   if (typeof submissionId !== 'string' || !/^[0-9a-f-]{36}$/i.test(submissionId)) {
     throw new Error('Invalid submission id');
   }
@@ -1192,6 +1197,12 @@ async function adminReviewMapping(submissionId, decision, note) {
         ? 'Reviewer access required'
         : `Review failed: ${text || response.status}`
     );
+  }
+  if (decision === 'approved') {
+    approvedMappingsCache.clear();
+    if (typeof siteKey === 'string' && siteKey) {
+      await getApprovedMappings(siteKey);
+    }
   }
   return { ok: true };
 }

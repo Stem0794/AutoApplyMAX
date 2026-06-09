@@ -733,17 +733,19 @@ function renderAdminMappings(groups) {
     `;
     row
       .querySelector('.btn-approve')
-      .addEventListener('click', () => reviewMapping(g.submissionId, 'approved', row));
+      .addEventListener('click', () =>
+        reviewMapping(g.submissionId, 'approved', row, '', g.siteKey)
+      );
     row.querySelector('.btn-danger').addEventListener('click', () => {
       const note = prompt('Reason for rejecting this mapping?');
       if (note === null) return;
-      reviewMapping(g.submissionId, 'rejected', row, note);
+      reviewMapping(g.submissionId, 'rejected', row, note, g.siteKey);
     });
     container.appendChild(row);
   }
 }
 
-async function reviewMapping(submissionId, decision, row, note = '') {
+async function reviewMapping(submissionId, decision, row, note = '', siteKey = '') {
   const buttons = row.querySelectorAll('button');
   buttons.forEach(b => (b.disabled = true));
   try {
@@ -752,6 +754,7 @@ async function reviewMapping(submissionId, decision, row, note = '') {
       submissionId,
       decision,
       note,
+      siteKey,
     });
     if (res?.error) throw new Error(res.error);
     row.style.opacity = '0.5';
