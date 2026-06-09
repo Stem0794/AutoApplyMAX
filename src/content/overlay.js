@@ -218,6 +218,7 @@ AAM.Overlay = {
         .aam-field-item {
           border: 1px solid #f1f5f9; border-radius: 10px;
           background: #fff; overflow: hidden; transition: border-color 0.2s;
+          flex: 0 0 auto;
         }
         .aam-field-item.aam-field-review { border-color: #fde68a; background: #fffbeb; }
         .aam-field-item.aam-field-done { border-color: #bbf7d0 !important; background: #f0fdf4 !important; }
@@ -307,6 +308,7 @@ AAM.Overlay = {
           font-size: 12px; font-weight: 700;
           position: sticky; bottom: 0; z-index: 2;
           box-shadow: 0 -8px 14px rgba(248,250,252,0.95);
+          flex: 0 0 auto;
         }
         #aam-fields-show-all:hover { background: #f1f5f9; color: #1e293b; }
         #aam-overlay #aam-fields-panel[hidden],

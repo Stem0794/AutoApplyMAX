@@ -509,9 +509,11 @@ describe('public-release security boundaries', () => {
     );
     expect(getComputedStyle(document.getElementById('aam-overlay-card')!).display).toBe('flex');
     expect(getComputedStyle(document.getElementById('aam-fields-panel')!).overflowY).toBe('auto');
+    expect(getComputedStyle(document.querySelector('.aam-field-item')!).flexShrink).toBe('0');
     expect(getComputedStyle(document.getElementById('aam-fields-show-all')!).position).toBe(
       'sticky'
     );
+    expect(getComputedStyle(document.getElementById('aam-fields-show-all')!).flexShrink).toBe('0');
 
     aam().Overlay.minimizeResult();
 
