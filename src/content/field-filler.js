@@ -22,6 +22,16 @@ AAM.FieldFiller = {
       return;
     }
 
+    // Handle checkboxes: value is a boolean (true = tick it)
+    if (el instanceof HTMLInputElement && el.type === 'checkbox') {
+      el.dataset.aamFilled = 'true';
+      const shouldCheck = value === true || value === 'true' || value === '1' || value === 'yes';
+      el.checked = shouldCheck;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
+
     el.dataset.aamFilled = 'true';
     if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')) {
       if (value !== true) return;
@@ -253,15 +263,18 @@ AAM.FieldFiller = {
       }
 
       const value = profile[profileKey];
-      if (!value) {
+      const isCheckbox = element instanceof HTMLInputElement && element.type === 'checkbox';
+      // For checkboxes: skip when the key is absent (undefined) — false is a valid stored value.
+      // For all other fields: skip when falsy.
+      if (isCheckbox ? value === undefined : !value) {
         detection.status = 'missing_value';
         skipped++;
         continue;
       }
 
-      const isChoiceInput =
-        element instanceof HTMLInputElement &&
-        (element.type === 'checkbox' || element.type === 'radio');
+      const isChoiceInput = isCheckbox ||
+        (element instanceof HTMLInputElement && element.type === 'radio');
+
       const fieldDefinition = AAM.PROFILE_MAP[profileKey];
       if (!fieldDefinition?.autofillable) {
         detection.status = 'not_autofillable';

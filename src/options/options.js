@@ -88,10 +88,6 @@ function buildFormFields() {
       if (field.type === 'textarea') {
         input = document.createElement('textarea');
         input.rows = 4;
-      } else if (field.type === 'checkbox') {
-        input = document.createElement('input');
-        input.type = 'checkbox';
-        div.classList.add('profile-consent');
       } else if (field.type === 'file') {
         input = document.createElement('input');
         input.type = 'file';
@@ -106,17 +102,41 @@ function buildFormFields() {
 
         // Don't add default placeholder for file input
         input.placeholder = '';
+      } else if (field.type === 'checkbox') {
+        // Render as a toggle (label wraps input + toggle span)
+        label.setAttribute('for', 'field-' + field.key);
+        label.className = 'setting-item checkbox-field-item';
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'setting-info';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'setting-label';
+        nameSpan.textContent = field.label;
+        const descSpan = document.createElement('span');
+        descSpan.className = 'setting-desc';
+        descSpan.textContent = 'Tick this if you want the extension to check this consent box on your behalf.';
+        infoDiv.appendChild(nameSpan);
+        infoDiv.appendChild(descSpan);
+        input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = 'field-' + field.key;
+        input.name = field.key;
+        const toggleSpan = document.createElement('span');
+        toggleSpan.className = 'toggle';
+        div.innerHTML = '';
+        label.appendChild(infoDiv);
+        label.appendChild(input);
+        label.appendChild(toggleSpan);
+        div.appendChild(label);
       } else {
         input = document.createElement('input');
         input.type = field.type || 'text';
         input.placeholder = field.label + '...';
       }
 
-      input.id = 'field-' + field.key;
-      input.name = field.key;
-
-      // For 'file' type, input is already added. For others, add here.
-      if (field.type !== 'file') {
+      // For 'file' and 'checkbox' types, input is already added. For others, add here.
+      if (field.type !== 'file' && field.type !== 'checkbox') {
+        input.id = 'field-' + field.key;
+        input.name = field.key;
         div.appendChild(input);
       }
       container.appendChild(div);
@@ -134,7 +154,7 @@ async function loadProfile() {
       const input = document.querySelector(`[name="${key}"]`);
       if (input) {
         if (input.type === 'checkbox') {
-          input.checked = value === true;
+          input.checked = Boolean(value);
         } else if (value) {
           input.value = value;
         }
@@ -170,7 +190,9 @@ async function saveProfile() {
       }
     } else if (fieldDef.type === 'checkbox') {
       const input = form.querySelector(`[name="${fieldDef.key}"]`);
-      if (input?.checked) profile[fieldDef.key] = true;
+      if (input) {
+        profile[fieldDef.key] = input.checked;
+      }
     } else {
       const input = form.querySelector(`[name="${fieldDef.key}"]`);
       if (input) {

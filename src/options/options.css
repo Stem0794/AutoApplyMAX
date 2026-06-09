@@ -814,3 +814,12 @@ body {
   background: #fef9c3;
   color: #854d0e;
 }
+
+/* ── Checkbox profile fields ──────────────────────── */
+.checkbox-field-item {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+}
